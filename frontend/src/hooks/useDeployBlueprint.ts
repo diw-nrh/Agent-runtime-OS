@@ -14,18 +14,22 @@ export function useDeployBlueprint() {
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
     const eventSource = new EventSource(`${backendUrl}/api/agent/stream/${taskId}`);
     
+    let isClosing = false;
     eventSource.onmessage = (event) => {
       const data = JSON.parse(event.data);
       const time = new Date().toLocaleTimeString();
       setLogs((prev) => [...prev, { status: data.status, message: data.message, time }]);
       
       if (data.status === 'COMPLETED' || data.status === 'ERROR') {
+        isClosing = true;
         eventSource.close();
       }
     };
 
     eventSource.onerror = () => {
-      setLogs((prev) => [...prev, { status: 'ERROR', message: 'Connection to stream lost.', time: new Date().toLocaleTimeString() }]);
+      if (!isClosing) {
+        setLogs((prev) => [...prev, { status: 'ERROR', message: 'Connection to stream lost.', time: new Date().toLocaleTimeString() }]);
+      }
       eventSource.close();
     };
 
@@ -68,7 +72,20 @@ export function useDeployBlueprint() {
             systemPrompt: n.data.system_prompt || 'You are a helpful assistant generated from canvas.',
             llmProvider: conn?.provider || n.data.provider || 'openai-compatible',
             modelId: n.data.model || '',
-            tools: [],
+            tools: (n.data.tools || []).map((toolId: string) => {
+              const custom = settings.customTools?.find(t => t.id === toolId);
+              if (custom) {
+                return { 
+                  id: custom.id, 
+                  name: custom.name, 
+                  type: custom.type, 
+                  url: custom.url, 
+                  command: custom.command, 
+                  args: custom.args 
+                };
+              }
+              return { id: toolId, isGlobal: true };
+            }),
             // Attach specific credentials directly to the agent payload
             credentials: {
               apiKey: conn?.apiKey || "",
@@ -137,7 +154,20 @@ export function useDeployBlueprint() {
             systemPrompt: n.data.system_prompt || 'You are a helpful assistant generated from canvas.',
             llmProvider: conn?.provider || n.data.provider || 'openai-compatible',
             modelId: n.data.model || '',
-            tools: [],
+            tools: (n.data.tools || []).map((toolId: string) => {
+              const custom = settings.customTools?.find(t => t.id === toolId);
+              if (custom) {
+                return { 
+                  id: custom.id, 
+                  name: custom.name, 
+                  type: custom.type, 
+                  url: custom.url, 
+                  command: custom.command, 
+                  args: custom.args 
+                };
+              }
+              return { id: toolId, isGlobal: true };
+            }),
             credentials: {
               apiKey: conn?.apiKey || "",
               baseUrl: conn?.baseUrl || ""

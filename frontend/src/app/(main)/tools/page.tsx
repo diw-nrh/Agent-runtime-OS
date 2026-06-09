@@ -21,8 +21,7 @@ export default function McpRegistryPage() {
   // Form State
   const [formName, setFormName] = useState('');
   const [formDesc, setFormDesc] = useState('');
-  const [formCommand, setFormCommand] = useState('');
-  const [formArgs, setFormArgs] = useState('');
+  const [formUrl, setFormUrl] = useState('');
 
   const fetchTools = async () => {
     try {
@@ -48,8 +47,8 @@ export default function McpRegistryPage() {
       description: formDesc,
       authorId: "user-uuid-here", // API will fallback to a real user
       config: {
-        command: formCommand,
-        args: formArgs.split(' ').filter(Boolean)
+        type: 'sse',
+        url: formUrl
       }
     };
     
@@ -65,8 +64,7 @@ export default function McpRegistryPage() {
         setShowModal(false);
         setFormName('');
         setFormDesc('');
-        setFormCommand('');
-        setFormArgs('');
+        setFormUrl('');
         fetchTools(); // Refresh list
       } else {
         alert("Error publishing: " + data.error);
@@ -84,7 +82,7 @@ export default function McpRegistryPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">MCP Marketplace</h1>
+            <h1 className="text-3xl font-bold tracking-tight">MCP Tools</h1>
             <p className="text-muted-foreground mt-2">Discover, manage, and publish external Model Context Protocol tools.</p>
           </div>
           <button 
@@ -92,7 +90,7 @@ export default function McpRegistryPage() {
             className="bg-primary text-primary-foreground px-4 py-2 rounded-md font-medium flex items-center gap-2 hover:bg-primary/90 transition-colors shadow-sm"
           >
             <Plus size={16} />
-            Publish New MCP
+            Publish New Tool
           </button>
         </div>
 
@@ -166,15 +164,19 @@ export default function McpRegistryPage() {
                 <textarea value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder="What does this tool do?" className="w-full p-2 text-sm border rounded-md outline-none focus:border-primary/50 resize-none h-20" />
               </div>
               
-              <div className="grid grid-cols-3 gap-3">
-                <div className="col-span-1">
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">Command</label>
-                  <input required value={formCommand} onChange={e => setFormCommand(e.target.value)} type="text" placeholder="npx" className="w-full p-2 text-sm border rounded-md font-mono outline-none focus:border-primary/50" />
+              <div className="bg-primary/5 p-3 rounded-lg border border-primary/20 mb-4">
+                <div className="flex items-center gap-2 text-primary font-medium text-sm mb-1">
+                  <Server size={14} /> SSE Transport Only
                 </div>
-                <div className="col-span-2">
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">Arguments</label>
-                  <input required value={formArgs} onChange={e => setFormArgs(e.target.value)} type="text" placeholder="-y @modelcontextprotocol/server-postgres" className="w-full p-2 text-sm border rounded-md font-mono outline-none focus:border-primary/50" />
-                </div>
+                <p className="text-xs text-muted-foreground">
+                  For security reasons, the Global Marketplace only supports hosted MCP servers via SSE (Server-Sent Events). 
+                  Local execution via `stdio` is disabled.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Endpoint URL</label>
+                <input required value={formUrl} onChange={e => setFormUrl(e.target.value)} type="url" placeholder="https://your-mcp-server.com/sse" className="w-full p-2 text-sm border rounded-md font-mono outline-none focus:border-primary/50" />
               </div>
 
               <div className="bg-blue-500/10 text-blue-600 dark:text-blue-400 p-3 rounded-md text-xs mt-4 border border-blue-500/20">

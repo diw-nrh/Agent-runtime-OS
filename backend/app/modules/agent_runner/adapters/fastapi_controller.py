@@ -43,7 +43,6 @@ async def stream_agent_events(task_id: str, request: Request):
     from celery.result import AsyncResult
     
     async def event_generator():
-        # Check if task is already done before subscribing
         task_result = AsyncResult(task_id)
         if task_result.ready():
             if task_result.state == 'SUCCESS':
@@ -54,6 +53,7 @@ async def stream_agent_events(task_id: str, request: Request):
                 })}
             else:
                 yield {"data": json.dumps({"status": "ERROR", "message": f"Task failed with state {task_result.state}"})}
+            await asyncio.sleep(1.0)
             return
 
         pubsub = redis_client.pubsub()
@@ -70,6 +70,7 @@ async def stream_agent_events(task_id: str, request: Request):
                     yield {"data": json.dumps({"status": "COMPLETED", "message": "Task finished.", "data": {"reply": res.result.get("reply", "") if isinstance(res.result, dict) else str(res.result)}})}
                 else:
                     yield {"data": json.dumps({"status": "ERROR", "message": "Task failed."})}
+                await asyncio.sleep(1.0)
                 break
 
             message = pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
@@ -80,11 +81,14 @@ async def stream_agent_events(task_id: str, request: Request):
                 try:
                     data_json = json.loads(data_str)
                     if data_json.get("status") in ["COMPLETED", "ERROR"]:
+                        await asyncio.sleep(1.0) # Give client time to receive and close
                         break
                 except:
                     pass
             
             await asyncio.sleep(0.5)
+
+    return EventSourceResponse(event_generator())
             
 from app.modules.agent_runner.domain.models import AgentBlueprint, ChatRequest
 from app.modules.agent_runner.chat_streamer import stream_agent_chat

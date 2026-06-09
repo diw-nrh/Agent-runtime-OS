@@ -57,7 +57,7 @@ export function ProjectNavTabs({ projectId }: { projectId: string }) {
         className={getTabClass(`/project/${projectId}/settings`)}
       >
         <Settings className="w-4 h-4" />
-        AI Connections
+        Project Settings
       </Link>
     </nav>
   );

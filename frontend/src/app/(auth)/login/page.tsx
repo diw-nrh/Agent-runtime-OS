@@ -39,8 +39,8 @@ export default function LoginPage() {
       
       <div className="relative z-10 w-full max-w-md p-8 rounded-2xl border border-white/10 bg-black/40 backdrop-blur-md shadow-2xl">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold tracking-tight text-white mb-2">Nodebook OS</h1>
-          <p className="text-sm text-gray-400">Enterprise Agentic IDE</p>
+          <h1 className="text-3xl font-bold tracking-tight text-white mb-2">Sign In</h1>
+          <p className="text-sm text-gray-400">Nodebook OS - Enterprise Agentic IDE</p>
         </div>
 
         {error && (
@@ -86,7 +86,7 @@ export default function LoginPage() {
           <p className="text-center text-sm text-muted-foreground mt-6">
             Don&apos;t have an account?{" "}
             <Link href="/register" className="text-primary hover:underline font-medium">
-              Create one
+              Register
             </Link>
           </p>
       </div>

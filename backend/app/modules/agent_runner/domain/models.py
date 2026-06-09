@@ -7,7 +7,7 @@ class AgentConfig(BaseModel):
     system_prompt: str = Field(..., alias="systemPrompt")
     llm_provider: Literal["openai-compatible", "anthropic", "google", "openai", "local", "groq", "gemini"] = Field(..., alias="llmProvider")
     model_id: str = Field(..., alias="modelId")
-    tools: List[str] = Field(default_factory=list)
+    tools: List[dict] = Field(default_factory=list)
     credentials: Optional[Dict[str, Optional[str]]] = Field(default_factory=dict)
     
     class Config:

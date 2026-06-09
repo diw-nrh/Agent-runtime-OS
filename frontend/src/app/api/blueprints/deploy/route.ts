@@ -57,10 +57,61 @@ export async function POST(request: Request) {
       });
     }
 
-    // 3. Forward to Python Engine
+    // 3. Resolve Global Tools efficiently
+    // Extract all global tool IDs
+    const globalToolIds = new Set<string>();
+    body.agents.forEach((agent: any) => {
+      (agent.tools || []).forEach((tool: any) => {
+        if (tool.isGlobal) {
+          globalToolIds.add(tool.id);
+        }
+      });
+    });
+
+    // Fetch all global tools in one query
+    const globalToolsMap = new Map();
+    if (globalToolIds.size > 0) {
+      const globalTools = await prisma.mcpTool.findMany({
+        where: { id: { in: Array.from(globalToolIds) } },
+        include: {
+          versions: {
+            orderBy: { createdAt: 'desc' },
+            take: 1
+          }
+        }
+      });
+      
+      globalTools.forEach(tool => {
+        if (tool.versions && tool.versions.length > 0) {
+          const config = tool.versions[0].config as any;
+          globalToolsMap.set(tool.id, {
+            id: tool.id,
+            name: tool.name,
+            type: config?.type || 'sse',
+            url: config?.url,
+            command: config?.command,
+            args: config?.args
+          });
+        }
+      });
+    }
+
+    const enrichedAgents = body.agents.map((agent: any) => {
+      const enrichedTools = (agent.tools || []).map((tool: any) => {
+        if (tool.isGlobal) {
+          const globalToolConfig = globalToolsMap.get(tool.id);
+          if (globalToolConfig) return globalToolConfig;
+        }
+        return tool; // Custom tool already has config from frontend
+      });
+      return { ...agent, tools: enrichedTools };
+    });
+
+    // 4. Forward to Python Engine
     const pythonPayload = {
       ...body,
-      id: savedBlueprint.id
+      id: savedBlueprint.id,
+      agents: enrichedAgents
     };
 
     // Extract BYOK headers from the frontend request

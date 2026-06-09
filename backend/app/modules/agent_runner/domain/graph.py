@@ -7,10 +7,11 @@ from langchain_anthropic import ChatAnthropic
 from langchain_google_genai import ChatGoogleGenerativeAI
 from app.modules.mcp_gateway.tools import TOOL_REGISTRY_MAP
 
-def build_agent_graph(blueprint: AgentBlueprint):
+def build_agent_graph(blueprint: AgentBlueprint, mcp_tool_map: dict = None):
     """
     Dynamically builds a LangGraph StateGraph connecting multiple Agents.
     """
+    mcp_tool_map = mcp_tool_map or {}
     workflow = StateGraph(AgentState)
 
     if not blueprint.agents:
@@ -83,9 +84,18 @@ def build_agent_graph(blueprint: AgentBlueprint):
             
         # Map requested tools from blueprint
         requested_tools = []
-        for tool_id in agent.tools:
+        for tool_obj in agent.tools:
+            if isinstance(tool_obj, dict):
+                tool_id = tool_obj.get("id")
+                # If it's a dynamic MCP tool
+                if tool_id in mcp_tool_map:
+                    requested_tools.extend(mcp_tool_map[tool_id])
+            elif isinstance(tool_obj, str):
+                tool_id = tool_obj
+                
             if tool_id in TOOL_REGISTRY_MAP:
                 requested_tools.append(TOOL_REGISTRY_MAP[tool_id])
+        
         
         # create_react_agent returns a compiled graph that acts as a Node
         agent_node = create_react_agent(

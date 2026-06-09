@@ -1,5 +1,25 @@
-import { NextAuthOptions } from "next-auth";
+import { NextAuthOptions, DefaultSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+
+declare module "next-auth" {
+  interface Session {
+    user: {
+      id: string;
+      role: string;
+    } & DefaultSession["user"];
+  }
+
+  interface User {
+    role: string;
+  }
+}
+
+declare module "next-auth/jwt" {
+  interface JWT {
+    id: string;
+    role: string;
+  }
+}
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "./prisma";
 import bcrypt from "bcryptjs";
@@ -34,12 +54,28 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Invalid password");
         }
 
-        return { id: user.id, email: user.email, name: user.name };
+        return { id: user.id, email: user.email, name: user.name, role: user.role };
       }
     })
   ],
   session: {
     strategy: "jwt"
+  },
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+        token.role = user.role;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (token && session.user) {
+        session.user.id = token.id as string;
+        session.user.role = token.role as string;
+      }
+      return session;
+    }
   },
   pages: {
     signIn: "/login",

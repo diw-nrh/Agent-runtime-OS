@@ -5,20 +5,21 @@ import { useParams } from 'next/navigation';
 import { useSettingsStore } from '@/store/settingsStore';
 import { AgentNodeProps } from '@/types/canvas';
 
-// Global cache for tools to prevent multiple fetches
-let cachedTools: any[] | null = null;
-let fetchingPromise: Promise<any[]> | null = null;
-
+// Remove the global cache since we now use project settings
 export function AgentNode({ id, data }: AgentNodeProps) {
   const { updateNodeData } = useReactFlow();
   const params = useParams();
   const projectId = params?.id as string;
   
   const { getProjectSettings } = useSettingsStore();
-  const connections = getProjectSettings(projectId).connections || [];
-
-  const [availableTools, setAvailableTools] = useState<any[]>(cachedTools || []);
+  const projSettings = getProjectSettings(projectId);
+  const connections = projSettings.connections || [];
+  const linkedTools = projSettings.linkedTools || [];
+  const customTools = projSettings.customTools || [];
   
+  // Combine all tools available to this project
+  const allProjectTools = [...linkedTools, ...customTools];
+
   // Local state to preserve native undo/redo history in inputs
   const [localLabel, setLocalLabel] = useState(data.label || '');
   const [localPrompt, setLocalPrompt] = useState(data.system_prompt || '');
@@ -28,27 +29,6 @@ export function AgentNode({ id, data }: AgentNodeProps) {
   useEffect(() => { setLocalLabel(data.label || ''); }, [data.label]);
   useEffect(() => { setLocalPrompt(data.system_prompt || ''); }, [data.system_prompt]);
   useEffect(() => { setLocalModel(data.model || ''); }, [data.model]);
-
-  // Fetch tools
-  useEffect(() => {
-    if (cachedTools) {
-      setAvailableTools(cachedTools);
-      return;
-    }
-    
-    if (!fetchingPromise) {
-      fetchingPromise = fetch('/api/mcp/tools')
-        .then(res => res.json())
-        .then(json => json.tools || []);
-    }
-    
-    fetchingPromise.then(tools => {
-      cachedTools = tools;
-      setAvailableTools(tools);
-    }).catch(err => {
-      console.error("Error fetching tools", err);
-    });
-  }, []);
 
   const handleLabelBlur = () => updateNodeData(id, { ...data, label: localLabel });
   const handlePromptBlur = () => updateNodeData(id, { ...data, system_prompt: localPrompt });
@@ -79,19 +59,27 @@ export function AgentNode({ id, data }: AgentNodeProps) {
     }
   };
 
-  const handleToolToggle = (toolId: string) => {
+  const handleAddTool = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const toolId = e.target.value;
+    if (!toolId) return;
     const currentTools: string[] = data.tools || [];
-    let newTools;
-    if (currentTools.includes(toolId)) {
-      newTools = currentTools.filter(t => t !== toolId);
-    } else {
-      newTools = [...currentTools, toolId];
+    if (!currentTools.includes(toolId)) {
+      updateNodeData(id, { ...data, tools: [...currentTools, toolId] });
     }
-    updateNodeData(id, { ...data, tools: newTools });
+    // Reset select
+    e.target.value = "";
+  };
+
+  const handleRemoveTool = (toolId: string) => {
+    const currentTools: string[] = data.tools || [];
+    updateNodeData(id, { ...data, tools: currentTools.filter(t => t !== toolId) });
   };
 
   const currentConnection = connections.find(c => c.id === data.connectionId);
   const currentProvider = currentConnection?.provider || data.provider; // Fallback to data.provider for backwards compatibility
+
+  const currentToolIds: string[] = data.tools || [];
+  const availableToolsToAdd = allProjectTools.filter(t => !currentToolIds.includes(t.id));
 
   return (
     <div className="bg-card text-card-foreground border shadow-sm rounded-xl w-72 overflow-hidden">
@@ -126,31 +114,49 @@ export function AgentNode({ id, data }: AgentNodeProps) {
           />
         </div>
         
-        {/* Tools Selection */}
+        {/* Tools Selection (Select + Tags UI) */}
         <div>
           <div className="text-xs text-muted-foreground mb-1 font-medium flex items-center gap-1">
-            <Wrench size={12} /> Capabilities (Tools)
+            <Wrench size={12} /> Project Tools
           </div>
-          <div className="bg-muted/50 p-2 rounded-md border space-y-1.5 max-h-24 overflow-y-auto">
-            {availableTools.length === 0 ? (
-              <div className="text-[10px] text-muted-foreground italic text-center py-1">Loading tools...</div>
-            ) : (
-              availableTools.map(tool => (
-                <label key={tool.id} className="flex items-start gap-2 text-[11px] cursor-pointer hover:bg-muted p-1 rounded transition-colors">
-                  <input 
-                    type="checkbox" 
-                    className="mt-0.5 rounded border-input text-primary focus:ring-primary/50"
-                    checked={(data.tools || []).includes(tool.id)}
-                    onChange={() => handleToolToggle(tool.id)}
-                  />
-                  <div className="flex flex-col">
-                    <span className="font-medium text-foreground">{tool.name}</span>
-                    <span className="text-[9px] text-muted-foreground leading-tight">{tool.description}</span>
-                  </div>
-                </label>
-              ))
-            )}
-          </div>
+          
+          {allProjectTools.length === 0 ? (
+            <div className="text-[10px] text-muted-foreground bg-muted/20 p-2 rounded-md border border-dashed border-border leading-tight">
+              No tools connected. Go to <a href={`/project/${projectId}/settings`} className="font-bold underline hover:text-primary transition-colors">Project Settings</a> to link tools.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <select 
+                className="w-full text-xs p-2 bg-muted border rounded-md outline-none focus:border-primary/50 nodrag cursor-pointer"
+                onChange={handleAddTool}
+                value=""
+              >
+                <option value="" disabled>+ Add Tool...</option>
+                {availableToolsToAdd.map(tool => (
+                  <option key={tool.id} value={tool.id}>
+                    {tool.type ? `[Private] ${tool.name}` : tool.name}
+                  </option>
+                ))}
+              </select>
+              
+              {/* Selected Tool Tags */}
+              {currentToolIds.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {currentToolIds.map(toolId => {
+                    const toolObj = allProjectTools.find(t => t.id === toolId);
+                    return (
+                      <div key={toolId} className="flex items-center gap-1 bg-primary/10 text-primary px-2 py-1 rounded text-[10px] font-medium border border-primary/20">
+                        {toolObj?.name || toolId}
+                        <button onClick={() => handleRemoveTool(toolId)} className="hover:bg-primary/20 rounded-full p-0.5">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col gap-3">

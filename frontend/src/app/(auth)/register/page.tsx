@@ -47,8 +47,8 @@ export default function RegisterPage() {
       
       <div className="relative z-10 w-full max-w-md p-8 rounded-2xl border border-white/10 bg-black/40 backdrop-blur-md shadow-2xl">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold tracking-tight text-white mb-2">Join Nodebook OS</h1>
-          <p className="text-sm text-gray-400">Create your enterprise account</p>
+          <h1 className="text-3xl font-bold tracking-tight text-white mb-2">Register</h1>
+          <p className="text-sm text-gray-400">Join Nodebook OS Enterprise</p>
         </div>
 
         {error && (
