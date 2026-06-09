@@ -18,11 +18,15 @@ Deploying the entire stack is extremely easy using Docker Compose. The environme
 - [Docker](https://docs.docker.com/get-docker/) installed.
 - [Docker Compose](https://docs.docker.com/compose/install/) installed.
 
-### 1. Set Up Environment Variables
-Create a `.env` file in the root of the project (the same directory as `docker-compose.yml`) and add your LLM API Key (e.g. OpenRouter):
+### 1. Set Up Environment Variables (Optional)
+By default, the application supports **Bring Your Own Key (BYOK)** directly through the Frontend UI Settings. This means you can just start the containers and enter your API keys inside the web app.
+
+However, if you want to set a default API Key at the system level, you can create a `.env` file in the root of the project:
 
 ```env
+# Optional: Set a default API key for the backend
 OPENROUTER_API_KEY=your_api_key_here
+# OPENAI_API_KEY=your_openai_key_here
 ```
 
 ### 2. Build and Start the Containers
