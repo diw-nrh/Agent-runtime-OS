@@ -2,11 +2,25 @@ import { useState, useEffect } from 'react';
 import { Node, Edge } from '@xyflow/react';
 import { useSettingsStore } from '@/store/settingsStore';
 
+export interface TraceData {
+  stepIndex: number;
+  agentId: string;
+  type: 'THOUGHT' | 'TOOL_CALL' | 'TOOL_RESULT' | 'MESSAGE' | 'ERROR';
+  content: Record<string, unknown> | string | unknown;
+}
+
+export interface StreamLog {
+  status: string;
+  message: string;
+  time: string;
+  data?: TraceData;
+}
+
 export function useDeployBlueprint() {
   const { getProjectSettings } = useSettingsStore();
   const [isDeploying, setIsDeploying] = useState(false);
   const [taskId, setTaskId] = useState<string | null>(null);
-  const [logs, setLogs] = useState<{status: string, message: string, time: string}[]>([]);
+  const [logs, setLogs] = useState<StreamLog[]>([]);
 
   useEffect(() => {
     if (!taskId) return;
@@ -18,7 +32,7 @@ export function useDeployBlueprint() {
     eventSource.onmessage = (event) => {
       const data = JSON.parse(event.data);
       const time = new Date().toLocaleTimeString();
-      setLogs((prev) => [...prev, { status: data.status, message: data.message, time }]);
+      setLogs((prev) => [...prev, { status: data.status, message: data.message, data: data.data, time }]);
       
       if (data.status === 'COMPLETED' || data.status === 'ERROR') {
         isClosing = true;

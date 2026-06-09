@@ -43,14 +43,43 @@ async def stream_agent_events(task_id: str, request: Request):
     from celery.result import AsyncResult
     
     async def event_generator():
+        import httpx
+        import os
+        NEXTJS_URL = os.getenv("NEXTJS_URL", "http://localhost:3000")
+        INTERNAL_SECRET = os.getenv("INTERNAL_API_SECRET", "nodebook-secret-dev")
+
         task_result = AsyncResult(task_id)
         if task_result.ready():
+            # Fetch historical traces in case client missed them
+            try:
+                async with httpx.AsyncClient() as client:
+                    resp = await client.get(f"{NEXTJS_URL}/api/internal/traces?runId={task_id}", headers={"Authorization": f"Bearer {INTERNAL_SECRET}"})
+                    if resp.status_code == 200:
+                        traces = resp.json().get("traces", [])
+                        for t in traces:
+                            yield {"data": json.dumps({
+                                "status": "TRACE_STEP",
+                                "message": "Historical trace",
+                                "data": {
+                                    "stepIndex": t["stepIndex"],
+                                    "agentId": t["agentId"],
+                                    "type": t["type"],
+                                    "content": t["content"]
+                                }
+                            })}
+            except Exception as e:
+                pass
+                
             if task_result.state == 'SUCCESS':
-                yield {"data": json.dumps({
-                    "status": "COMPLETED", 
-                    "message": "Task was already completed.", 
-                    "data": {"reply": task_result.result.get("reply", "") if isinstance(task_result.result, dict) else str(task_result.result)}
-                })}
+                result_data = task_result.result if isinstance(task_result.result, dict) else {"reply": str(task_result.result)}
+                if result_data.get("status") == "error":
+                    yield {"data": json.dumps({"status": "ERROR", "message": result_data.get("message", "Unknown error")})}
+                else:
+                    yield {"data": json.dumps({
+                        "status": "COMPLETED", 
+                        "message": "Task was already completed.", 
+                        "data": {"reply": result_data.get("reply", "")}
+                    })}
             else:
                 yield {"data": json.dumps({"status": "ERROR", "message": f"Task failed with state {task_result.state}"})}
             await asyncio.sleep(1.0)
@@ -63,18 +92,14 @@ async def stream_agent_events(task_id: str, request: Request):
             if await request.is_disconnected():
                 break
                 
-            # Double check if task finished while we were waiting (in case we missed the pubsub message)
-            if AsyncResult(task_id).ready():
-                res = AsyncResult(task_id)
-                if res.state == 'SUCCESS':
-                    yield {"data": json.dumps({"status": "COMPLETED", "message": "Task finished.", "data": {"reply": res.result.get("reply", "") if isinstance(res.result, dict) else str(res.result)}})}
-                else:
-                    yield {"data": json.dumps({"status": "ERROR", "message": "Task failed."})}
-                await asyncio.sleep(1.0)
-                break
-
-            message = pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
-            if message:
+            # Exhaust all messages currently in the pubsub queue without sleeping
+            got_message = False
+            while True:
+                message = pubsub.get_message(ignore_subscribe_messages=True, timeout=0.1)
+                if not message:
+                    break
+                    
+                got_message = True
                 data_str = message['data'].decode('utf-8')
                 yield {"data": data_str}
                 
@@ -82,16 +107,42 @@ async def stream_agent_events(task_id: str, request: Request):
                     data_json = json.loads(data_str)
                     if data_json.get("status") in ["COMPLETED", "ERROR"]:
                         await asyncio.sleep(1.0) # Give client time to receive and close
-                        break
+                        return
                 except:
                     pass
             
-            await asyncio.sleep(0.5)
+            # If task finished while we were waiting but we missed pubsub COMPLETED signal
+            if AsyncResult(task_id).ready():
+                res = AsyncResult(task_id)
+                
+                # Fetch any missed historical traces before sending COMPLETED
+                try:
+                    async with httpx.AsyncClient() as client:
+                        resp = await client.get(f"{NEXTJS_URL}/api/internal/traces?runId={task_id}", headers={"Authorization": f"Bearer {INTERNAL_SECRET}"})
+                        if resp.status_code == 200:
+                            traces = resp.json().get("traces", [])
+                            for t in traces:
+                                yield {"data": json.dumps({
+                                    "status": "TRACE_STEP",
+                                    "message": "Historical trace",
+                                    "data": {"stepIndex": t["stepIndex"], "agentId": t["agentId"], "type": t["type"], "content": t["content"]}
+                                })}
+                except:
+                    pass
+                
+                if res.state == 'SUCCESS':
+                    yield {"data": json.dumps({"status": "COMPLETED", "message": "Task finished.", "data": {"reply": res.result.get("reply", "") if isinstance(res.result, dict) else str(res.result)}})}
+                else:
+                    yield {"data": json.dumps({"status": "ERROR", "message": "Task failed."})}
+                await asyncio.sleep(1.0)
+                return
+            
+            if not got_message:
+                await asyncio.sleep(0.5)
 
     return EventSourceResponse(event_generator())
             
 from app.modules.agent_runner.domain.models import AgentBlueprint, ChatRequest
-from app.modules.agent_runner.chat_streamer import stream_agent_chat
 
 @router.post("/chat")
 async def chat_with_agent(chat_request: ChatRequest, request: Request):
@@ -105,7 +156,22 @@ async def chat_with_agent(chat_request: ChatRequest, request: Request):
         
         # Inject into blueprint payload
         chat_request.blueprint.api_keys = api_keys
+        
+        # Serialize ChatRequest into dict
+        payload = {
+            "blueprint": chat_request.blueprint.dict(),
+            "messages": [m.dict() for m in chat_request.messages]
+        }
 
-        return EventSourceResponse(stream_agent_chat(chat_request))
+        # Kick off background job
+        from app.modules.agent_runner.tasks import run_agent_pipeline
+        task = run_agent_pipeline.delay(payload)
+        
+        return {
+            "message": "Chat task submitted successfully.",
+            "blueprint_id": chat_request.blueprint.id,
+            "task_id": task.id,
+            "status": "Processing"
+        }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

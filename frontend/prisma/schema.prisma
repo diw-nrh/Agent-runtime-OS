@@ -44,6 +44,8 @@ model AgentBlueprint {
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  
+  runs        AgentExecutionRun[]
 }
 
 model McpTool {
@@ -69,6 +71,31 @@ model McpToolVersion {
   
   toolId      String
   tool        McpTool  @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+}
+
+model AgentExecutionRun {
+  id          String   @id @default(uuid())
+  blueprintId String?
+  blueprint   AgentBlueprint? @relation(fields: [blueprintId], references: [id], onDelete: Cascade)
+  
+  status      String   @default("RUNNING") // RUNNING, COMPLETED, ERROR
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+  
+  traces      AgentTraceStep[]
+}
+
+model AgentTraceStep {
+  id          String   @id @default(uuid())
+  runId       String
+  run         AgentExecutionRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  
+  stepIndex   Int
+  agentId     String?  // The LangGraph Node/Agent name
+  type        String   // "THOUGHT", "TOOL_CALL", "TOOL_RESULT", "MESSAGE", "ERROR"
+  content     Json     // Detail payload
   
   createdAt   DateTime @default(now())
 }
