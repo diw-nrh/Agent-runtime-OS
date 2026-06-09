@@ -8,3 +8,6 @@ langgraph
 langchain-community
 pydantic
 pydantic-settings
+
+langchain-anthropic
+langchain-google-genai

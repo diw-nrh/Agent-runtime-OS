@@ -16,7 +16,8 @@ def test_build_agent_graph_success(monkeypatch):
                 systemPrompt="You are a researcher.",
                 llmProvider="openai",
                 modelId="openai/gpt-4o-mini",
-                tools=[]
+                tools=[],
+                credentials={"apiKey": "dummy"}
             ),
             AgentConfig(
                 id="agent_2",
@@ -24,7 +25,8 @@ def test_build_agent_graph_success(monkeypatch):
                 systemPrompt="You are a writer.",
                 llmProvider="openai",
                 modelId="openai/gpt-4o-mini",
-                tools=[]
+                tools=[],
+                credentials={"apiKey": "dummy"}
             )
         ],
         nodes=[],

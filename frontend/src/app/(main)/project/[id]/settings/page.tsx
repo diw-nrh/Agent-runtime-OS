@@ -36,9 +36,9 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
     } else {
       setEditingId(null);
       setName("");
-      setProvider("openai");
+      setProvider("openai-compatible");
       setApiKey("");
-      setBaseUrl("http://localhost:11434");
+      setBaseUrl("https://api.openai.com/v1");
     }
     setShowModal(true);
   };
@@ -53,8 +53,8 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
         id: `conn_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
         name,
         provider,
-        apiKey: provider !== 'local' ? apiKey : undefined,
-        baseUrl: provider === 'local' ? baseUrl : undefined
+        apiKey: apiKey ? apiKey : undefined,
+        baseUrl: provider === 'openai-compatible' ? baseUrl : undefined
       };
       addConnection(projectId, newConn);
     }
@@ -107,11 +107,11 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
                 <div className="p-5 flex-1">
                   <div className="flex justify-between items-start mb-4">
                     <div className={`p-2 rounded-lg ${
-                      conn.provider === 'openai' ? 'bg-green-100 text-green-700' :
-                      conn.provider === 'groq' ? 'bg-orange-100 text-orange-700' :
+                      conn.provider === 'openai-compatible' ? 'bg-green-100 text-green-700' :
+                      conn.provider === 'anthropic' ? 'bg-orange-100 text-orange-700' :
                       'bg-blue-100 text-blue-700'
                     }`}>
-                      {conn.provider === 'local' ? <Server className="w-5 h-5" /> : <Cpu className="w-5 h-5" />}
+                      {conn.provider === 'openai-compatible' ? <Server className="w-5 h-5" /> : <Cpu className="w-5 h-5" />}
                     </div>
                     <div className="flex opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => handleOpenModal(conn)} className="p-1.5 text-muted-foreground hover:text-primary rounded-md">
@@ -127,7 +127,7 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
                 </div>
                 <div className="bg-muted/30 border-t px-5 py-3 text-xs text-muted-foreground flex items-center gap-2">
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  {conn.provider === 'local' ? conn.baseUrl : 'API Key Securely Stored'}
+                  {conn.provider === 'openai-compatible' && conn.baseUrl ? conn.baseUrl : 'API Key Securely Stored'}
                 </div>
               </div>
             ))}
@@ -163,13 +163,13 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
                     onChange={(e) => setProvider(e.target.value as AIProviderType)}
                     className="w-full px-3 py-2 border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
                   >
-                    <option value="openai">OpenAI</option>
-                    <option value="groq">Groq</option>
-                    <option value="local">Local AI</option>
+                    <option value="openai-compatible">Universal (OpenAI-Compatible / Local)</option>
+                    <option value="anthropic">Anthropic</option>
+                    <option value="google">Google Gemini</option>
                   </select>
                 </div>
 
-                {provider === 'local' ? (
+                {provider === 'openai-compatible' && (
                   <div>
                     <label className="block text-sm font-medium mb-1">Base URL</label>
                     <input 
@@ -177,23 +177,23 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
                       required
                       value={baseUrl}
                       onChange={(e) => setBaseUrl(e.target.value)}
-                      placeholder="http://localhost:11434"
-                      className="w-full px-3 py-2 border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 font-mono text-sm"
-                    />
-                  </div>
-                ) : (
-                  <div>
-                    <label className="block text-sm font-medium mb-1">API Key</label>
-                    <input 
-                      type="password" 
-                      required
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      placeholder={provider === 'openai' ? "sk-..." : "gsk_..."}
+                      placeholder="https://api.openai.com/v1"
                       className="w-full px-3 py-2 border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 font-mono text-sm"
                     />
                   </div>
                 )}
+                
+                <div>
+                  <label className="block text-sm font-medium mb-1">API Key {provider === 'openai-compatible' && '(Optional for Local)'}</label>
+                  <input 
+                    type="password" 
+                    required={provider !== 'openai-compatible'}
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="sk-..."
+                    className="w-full px-3 py-2 border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 font-mono text-sm"
+                  />
+                </div>
 
                 <div className="flex justify-end gap-3 mt-8">
                   <button

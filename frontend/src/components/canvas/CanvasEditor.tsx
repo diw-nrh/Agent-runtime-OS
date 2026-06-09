@@ -48,7 +48,7 @@ export function CanvasEditor({
   const [nodes, setNodes, onNodesChange] = useNodesState(propNodes || initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(propEdges || initialEdges);
   
-  const { deploy, isDeploying, taskId, logs, closeConsole } = useDeployBlueprint();
+  const { deploy, saveBlueprint, isDeploying, taskId, logs, closeConsole } = useDeployBlueprint();
 
   const { screenToFlowPosition } = useReactFlow();
 
@@ -107,7 +107,15 @@ export function CanvasEditor({
         <MiniMap zoomable pannable className="bg-card border rounded-lg shadow-md" maskColor="rgba(0,0,0,0.1)" />
         <Background variant={BackgroundVariant.Dots} gap={16} size={1.5} color="currentColor" className="opacity-10 text-muted-foreground" />
         
-        <Panel position="top-right" className="m-4">
+        <Panel position="top-right" className="m-4 flex gap-2">
+          <button 
+            onClick={() => saveBlueprint(nodes, edges, blueprintId, projectName, projectDescription)}
+            disabled={isDeploying}
+            className="bg-secondary text-secondary-foreground flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium shadow-md hover:bg-secondary/80 transition-all active:scale-95 border disabled:opacity-70 disabled:pointer-events-none"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-save"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg>
+            Save
+          </button>
           <button 
             onClick={handleDeploy}
             disabled={isDeploying}
@@ -118,7 +126,7 @@ export function CanvasEditor({
             ) : (
               <Play size={16} className="fill-current" />
             )}
-            {isDeploying ? 'Submitting Job...' : 'Deploy to Engine'}
+            {isDeploying ? 'Working...' : 'Deploy to Engine'}
           </button>
         </Panel>
       </ReactFlow>

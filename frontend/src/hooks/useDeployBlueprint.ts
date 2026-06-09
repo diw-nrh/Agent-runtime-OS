@@ -66,8 +66,8 @@ export function useDeployBlueprint() {
             id: n.id,
             name: n.data.label || 'Unknown Agent',
             systemPrompt: n.data.system_prompt || 'You are a helpful assistant generated from canvas.',
-            llmProvider: conn?.provider || n.data.provider || 'openai',
-            modelId: n.data.model || 'openai/gpt-4o-mini',
+            llmProvider: conn?.provider || n.data.provider || 'openai-compatible',
+            modelId: n.data.model || '',
             tools: [],
             // Attach specific credentials directly to the agent payload
             credentials: {
@@ -117,10 +117,71 @@ export function useDeployBlueprint() {
     }
   };
 
+  const saveBlueprint = async (nodes: Node[], edges: Edge[], blueprintId?: string, name?: string, description?: string) => {
+    setIsDeploying(true); // Reusing the deploying state for loading UI
+    
+    try {
+      const settings = blueprintId ? getProjectSettings(blueprintId) : getProjectSettings('default');
+      const connections = settings.connections || [];
+      
+      const blueprint = {
+        id: blueprintId,
+        name: name || "Untitled Project",
+        description: description || "A custom AI agent workflow blueprint.",
+        version: "1.0.0",
+        agents: nodes.map(n => {
+          const conn = connections.find(c => c.id === n.data.connectionId);
+          return {
+            id: n.id,
+            name: n.data.label || 'Unknown Agent',
+            systemPrompt: n.data.system_prompt || 'You are a helpful assistant generated from canvas.',
+            llmProvider: conn?.provider || n.data.provider || 'openai-compatible',
+            modelId: n.data.model || '',
+            tools: [],
+            credentials: {
+              apiKey: conn?.apiKey || "",
+              baseUrl: conn?.baseUrl || ""
+            }
+          };
+        }),
+        nodes: nodes.map(n => ({
+          id: n.id,
+          type: n.type || 'agent',
+          position: n.position || { x: 0, y: 0 },
+          measured: n.measured,
+          data: n.data || {}
+        })),
+        edges: edges.map(e => ({ ...e })),
+        metadata: {}
+      };
+
+      const response = await fetch('/api/blueprints/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(blueprint)
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok || !data.success) {
+        throw new Error(`Save error: ${data.error}`);
+      }
+      
+      // Optional: show a quick success toast or log
+      setLogs(prev => [...prev, {status: 'SUCCESS', message: 'Blueprint saved successfully.', time: new Date().toLocaleTimeString()}]);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setLogs(prev => [...prev, {status: 'ERROR', message: `Failed to save: ${err.message}`, time: new Date().toLocaleTimeString()}]);
+      }
+    } finally {
+      setIsDeploying(false);
+    }
+  };
+
   const closeConsole = () => {
     setTaskId(null);
     setLogs([]);
   };
 
-  return { deploy, isDeploying, taskId, logs, closeConsole };
+  return { deploy, saveBlueprint, isDeploying, taskId, logs, closeConsole };
 }

@@ -17,6 +17,7 @@ model User {
   updatedAt DateTime @updatedAt
 
   workspaces Workspace[]
+  mcpTools   McpTool[]
 }
 
 model Workspace {
@@ -44,3 +45,31 @@ model AgentBlueprint {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
+
+model McpTool {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  isPublic    Boolean  @default(false)
+  
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id])
+  
+  versions    McpToolVersion[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model McpToolVersion {
+  id          String   @id @default(uuid())
+  version     String   // e.g., "1.0.0"
+  config      Json     // Details like {"command": "npx", "args": ["@modelcontextprotocol/server-postgres"]}
+  changelog   String?
+  
+  toolId      String
+  tool        McpTool  @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+}
+

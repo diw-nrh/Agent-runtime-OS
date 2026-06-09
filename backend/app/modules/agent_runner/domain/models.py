@@ -5,7 +5,7 @@ class AgentConfig(BaseModel):
     id: str
     name: str
     system_prompt: str = Field(..., alias="systemPrompt")
-    llm_provider: Literal["openai", "anthropic", "gemini", "local", "groq"] = Field(..., alias="llmProvider")
+    llm_provider: Literal["openai-compatible", "anthropic", "google", "openai", "local", "groq", "gemini"] = Field(..., alias="llmProvider")
     model_id: str = Field(..., alias="modelId")
     tools: List[str] = Field(default_factory=list)
     credentials: Optional[Dict[str, Optional[str]]] = Field(default_factory=dict)
@@ -31,3 +31,12 @@ class AgentBlueprint(BaseModel):
     edges: List[EdgeConfig] = Field(default_factory=list)
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
     api_keys: Optional[Dict[str, str]] = Field(default_factory=dict)
+
+class ChatMessage(BaseModel):
+    role: Literal["user", "agent", "system"]
+    content: str
+
+class ChatRequest(BaseModel):
+    blueprint: AgentBlueprint
+    messages: List[ChatMessage]
+

@@ -2,8 +2,10 @@ from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import create_react_agent
 from app.modules.agent_runner.domain.state import AgentState
 from app.modules.agent_runner.domain.models import AgentBlueprint
-from app.modules.agent_runner.adapters.llm.openrouter_adapter import OpenRouterAdapter
-from app.modules.mcp_gateway.tools import mcp_tools
+from langchain_openai import ChatOpenAI
+from langchain_anthropic import ChatAnthropic
+from langchain_google_genai import ChatGoogleGenerativeAI
+from app.modules.mcp_gateway.tools import TOOL_REGISTRY_MAP
 
 def build_agent_graph(blueprint: AgentBlueprint):
     """
@@ -20,32 +22,75 @@ def build_agent_graph(blueprint: AgentBlueprint):
         provider = agent.llm_provider
         creds = agent.credentials or {}
         
+        # Fallback to blueprint level API keys if agent doesn't have it
         target_key = creds.get("apiKey", "")
         base_url = creds.get("baseUrl", "")
         
-        if not base_url:
+        if not target_key and blueprint.api_keys:
             if provider == "groq":
-                base_url = "https://api.groq.com/openai/v1"
-            elif provider == "openai":
-                base_url = "https://api.openai.com/v1"
-            elif provider == "local":
-                base_url = "http://localhost:11434/v1"
-            else:
-                base_url = "https://openrouter.ai/api/v1"
+                target_key = blueprint.api_keys.get("groq", "")
+            elif provider in ["openai", "openai-compatible"]:
+                target_key = blueprint.api_keys.get("openai", "")
+            elif provider == "anthropic":
+                target_key = blueprint.api_keys.get("anthropic", "")
+            elif provider in ["google", "gemini"]:
+                target_key = blueprint.api_keys.get("google", "")
+                
+        if not base_url and blueprint.api_keys and provider in ["local", "openai-compatible"]:
+            base_url = blueprint.api_keys.get("local", "")
         
-        if provider == "local" and not target_key:
-            target_key = "dummy" # Local models often don't need a key
+        if provider == "anthropic":
+            if not target_key:
+                raise ValueError(f"API Key is missing for Anthropic (Agent: {agent.name})")
+            llm = ChatAnthropic(
+                model=agent.model_id,
+                api_key=target_key,
+                default_headers={"X-Title": "Nodebook OS"}
+            )
+        elif provider == "google" or provider == "gemini":
+            if not target_key:
+                raise ValueError(f"API Key is missing for Google Gemini (Agent: {agent.name})")
+            llm = ChatGoogleGenerativeAI(
+                model=agent.model_id,
+                api_key=target_key
+            )
+        else: # openai-compatible, openai, local, groq
+            if not base_url:
+                if provider == "groq":
+                    base_url = "https://api.groq.com/openai/v1"
+                elif provider == "openai":
+                    base_url = "https://api.openai.com/v1"
+                elif provider == "local":
+                    base_url = "http://localhost:11434/v1"
+                else: # openai-compatible defaults to openai if empty
+                    base_url = "https://api.openai.com/v1"
             
-        llm = OpenRouterAdapter(
-            model_id=agent.model_id, 
-            api_key=target_key,
-            base_url=base_url
-        ).get_model()
+            if (provider == "local" or provider == "openai-compatible") and not target_key:
+                target_key = "dummy"
+                
+            if not target_key:
+                raise ValueError(f"API Key is missing for OpenAI-Compatible Provider (Agent: {agent.name})")
+
+            llm = ChatOpenAI(
+                model=agent.model_id,
+                api_key=target_key,
+                base_url=base_url,
+                default_headers={
+                    "HTTP-Referer": "http://localhost:3000",
+                    "X-Title": "Nodebook OS",
+                }
+            )
+            
+        # Map requested tools from blueprint
+        requested_tools = []
+        for tool_id in agent.tools:
+            if tool_id in TOOL_REGISTRY_MAP:
+                requested_tools.append(TOOL_REGISTRY_MAP[tool_id])
         
         # create_react_agent returns a compiled graph that acts as a Node
         agent_node = create_react_agent(
             model=llm, 
-            tools=[], # Pass empty tools for now until MCP Tool UI is built
+            tools=requested_tools,
             prompt=agent.system_prompt
         )
         workflow.add_node(agent.id, agent_node)

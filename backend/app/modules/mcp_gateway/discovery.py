@@ -1,11 +1,9 @@
 class ToolRegistry:
     def __init__(self):
-        # Simulated list of tools that would normally come from FastMCP or connected local servers
+        # Tools that are actually implemented in tools.py
         self._tools = [
-            {"id": "file_reader", "name": "File Reader", "description": "Reads local files from the project directory."},
-            {"id": "postgres_query", "name": "Postgres Query", "description": "Execute read-only queries against the database."},
-            {"id": "github_search", "name": "GitHub Search", "description": "Search repositories and code on GitHub."},
-            {"id": "brave_search", "name": "Brave Web Search", "description": "Perform a web search using Brave API."},
+            {"id": "web_search", "name": "Web Search (DuckDuckGo)", "description": "Search the internet for real-time information."},
+            {"id": "read_file", "name": "File Reader", "description": "Read the contents of a file from the local machine."},
             {"id": "calculator", "name": "Calculator", "description": "Perform mathematical calculations."},
         ]
 

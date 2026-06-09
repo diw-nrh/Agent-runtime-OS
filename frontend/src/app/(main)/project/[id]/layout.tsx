@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
-import { Bot, Network, BookOpen, TerminalSquare, ArrowLeft, Settings } from "lucide-react";
+import { Bot, ArrowLeft } from "lucide-react";
+import { ProjectNavTabs } from "@/components/layout/ProjectNavTabs";
 
 export default async function ProjectLayout({
   children,
@@ -35,37 +36,7 @@ export default async function ProjectLayout({
           </div>
 
           {/* Navigation Tabs */}
-          <nav className="flex items-center gap-1">
-            <Link 
-              href={`/project/${id}`} 
-              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md hover:bg-muted text-foreground transition-colors"
-            >
-              <Network className="w-4 h-4" />
-              Canvas
-            </Link>
-            <Link 
-              href={`/project/${id}/notebook`} 
-              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <BookOpen className="w-4 h-4" />
-              Agent Note
-            </Link>
-            <Link 
-              href={`/project/${id}/playground`} 
-              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <TerminalSquare className="w-4 h-4" />
-              Playground
-            </Link>
-            <div className="w-px h-6 bg-border mx-1"></div>
-            <Link 
-              href={`/project/${id}/settings`} 
-              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <Settings className="w-4 h-4" />
-              AI Connections
-            </Link>
-          </nav>
+          <ProjectNavTabs projectId={id} />
         </div>
       </header>
 
