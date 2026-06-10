@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Network, BookOpen, TerminalSquare, Settings, Activity } from "lucide-react";
+import { Network, BookOpen, TerminalSquare, Settings, Activity, Wrench } from "lucide-react";
 
 export function ProjectNavTabs({ projectId }: { projectId: string }) {
   const pathname = usePathname() || "";
@@ -44,6 +44,20 @@ export function ProjectNavTabs({ projectId }: { projectId: string }) {
       >
         <BookOpen className="w-4 h-4" />
         Agent Note
+      </Link>
+      <Link 
+        href={`/project/${projectId}/skills`} 
+        className={getTabClass(`/project/${projectId}/skills`)}
+      >
+        <BookOpen className="w-4 h-4" />
+        Skills
+      </Link>
+      <Link 
+        href={`/project/${projectId}/tools`} 
+        className={getTabClass(`/project/${projectId}/tools`)}
+      >
+        <Wrench className="w-4 h-4" />
+        MCP Tools
       </Link>
       <Link 
         href={`/project/${projectId}/playground`} 

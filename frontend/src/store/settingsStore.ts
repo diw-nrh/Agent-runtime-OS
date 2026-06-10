@@ -30,10 +30,17 @@ export interface ExecutionSettings {
   enableFaultTolerance: boolean;
 }
 
+export interface Skill {
+  id: string;
+  name: string;
+  content: string;
+}
+
 export interface ProjectSettings {
   connections: AIConnection[];
   linkedTools: any[]; // Tools linked from the global marketplace
   customTools: CustomMcpTool[]; // Private tools created in this project
+  skills?: Skill[]; // Skills written in Markdown
   executionSettings?: ExecutionSettings;
 }
 
@@ -52,6 +59,11 @@ interface SettingsState {
   addCustomTool: (projectId: string, tool: CustomMcpTool) => void;
   updateCustomTool: (projectId: string, toolId: string, updates: Partial<CustomMcpTool>) => void;
   deleteCustomTool: (projectId: string, toolId: string) => void;
+
+  // Skill Actions
+  addSkill: (projectId: string, skill: Skill) => void;
+  updateSkill: (projectId: string, skillId: string, updates: Partial<Skill>) => void;
+  deleteSkill: (projectId: string, skillId: string) => void;
 
   updateExecutionSettings: (projectId: string, settings: Partial<ExecutionSettings>) => void;
 
@@ -192,6 +204,50 @@ export const useSettingsStore = create<SettingsState>()(
             [projectId]: {
               ...proj,
               customTools: (proj.customTools || []).filter(t => t.id !== toolId)
+            }
+          }
+        };
+      }),
+
+      addSkill: (projectId, skill) => set((state) => {
+        const proj = state.projects[projectId] || { ...defaultSettings };
+        const skills = proj.skills || [];
+        return {
+          projects: {
+            ...state.projects,
+            [projectId]: {
+              ...proj,
+              skills: [...skills, skill]
+            }
+          }
+        };
+      }),
+
+      updateSkill: (projectId, skillId, updates) => set((state) => {
+        const proj = state.projects[projectId];
+        if (!proj || !proj.skills) return state;
+        
+        return {
+          projects: {
+            ...state.projects,
+            [projectId]: {
+              ...proj,
+              skills: proj.skills.map(s => s.id === skillId ? { ...s, ...updates } : s)
+            }
+          }
+        };
+      }),
+
+      deleteSkill: (projectId, skillId) => set((state) => {
+        const proj = state.projects[projectId];
+        if (!proj || !proj.skills) return state;
+        
+        return {
+          projects: {
+            ...state.projects,
+            [projectId]: {
+              ...proj,
+              skills: proj.skills.filter(s => s.id !== skillId)
             }
           }
         };

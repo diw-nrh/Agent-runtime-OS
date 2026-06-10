@@ -8,6 +8,7 @@ class AgentConfig(BaseModel):
     llm_provider: Literal["openai-compatible", "anthropic", "google", "openai", "local", "groq", "gemini"] = Field(..., alias="llmProvider")
     model_id: str = Field(..., alias="modelId")
     tools: List[dict] = Field(default_factory=list)
+    agent_note: Optional[str] = Field(None, alias="agentNote")
     credentials: Optional[Dict[str, Optional[str]]] = Field(default_factory=dict)
     
     class Config:
@@ -22,6 +23,8 @@ class EdgeConfig(BaseModel):
     id: str
     source: str
     target: str
+    mode: Literal["sequential", "delegate"] = "delegate"
+    data: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 class AgentBlueprint(BaseModel):
     id: str

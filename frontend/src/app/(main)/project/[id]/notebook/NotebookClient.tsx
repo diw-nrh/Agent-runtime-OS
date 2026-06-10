@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { NotebookEditor } from "@/components/notebook/Editor";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useDeployBlueprint } from "@/hooks/useDeployBlueprint";
-import { AlertCircle, Wrench, Bot, Link, Settings2, ChevronDown, ChevronUp } from "lucide-react";
+import { AlertCircle, Wrench, Bot, Link as LinkIcon, Settings2, ChevronDown, ChevronUp, Network, Plus, Settings, Database, Trash2, FileCode2, Maximize2, Minimize2, ExternalLink } from "lucide-react";
 import { Node, Edge } from "@xyflow/react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface NotebookClientProps {
   projectId: string;
@@ -15,16 +18,22 @@ interface NotebookClientProps {
 }
 
 export function NotebookClient({ projectId, blueprintId, initialNodes = [], initialEdges = [] }: NotebookClientProps) {
+  const searchParams = useSearchParams();
+  const requestedAgentId = searchParams.get("agentId");
+  
   const { getProjectSettings } = useSettingsStore();
   const projSettings = getProjectSettings(projectId);
   const connections = projSettings.connections || [];
   const allProjectTools = [...(projSettings.linkedTools || []), ...(projSettings.customTools || [])];
+  const skills = projSettings.skills || [];
 
   const [allNodes, setAllNodes] = useState<Node[]>(initialNodes);
   const [allEdges, setAllEdges] = useState<Edge[]>(initialEdges);
   
   const [selectedAgentId, setSelectedAgentId] = useState<string>(
-    initialNodes.length > 0 ? initialNodes[0].id : "new_agent"
+    requestedAgentId && initialNodes.some(n => n.id === requestedAgentId) 
+      ? requestedAgentId 
+      : (initialNodes.length > 0 ? initialNodes[0].id : "new_agent")
   );
 
   // Form State
@@ -34,7 +43,7 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
   const [provider, setProvider] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [selectedTools, setSelectedTools] = useState<string[]>([]);
-  const [targetAgentId, setTargetAgentId] = useState<string>("");
+  const [targetAgentId, setTargetAgentId] = useState("");
   
   // Advanced Limits State
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -45,11 +54,43 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
   // Editor re-mount key (to force Tiptap to load new content)
   const [editorKey, setEditorKey] = useState(0);
 
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const editorRef = useRef<any>(null);
+
+  // Global Dialog State for Agent descriptions
+  const [agentDialog, setAgentDialog] = useState<{isOpen: boolean; agentName: string; agentDesc: string}>({
+    isOpen: false,
+    agentName: '',
+    agentDesc: ''
+  });
+
+  const [isConnectionsFullscreen, setIsConnectionsFullscreen] = useState(false);
+
   // Fix hydration mismatch for Zustand persist
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => {
     setIsMounted(true);
+    
+    const handleOpenDesc = (e: any) => {
+      setAgentDialog({
+        isOpen: true,
+        agentName: e.detail.agentName,
+        agentDesc: e.detail.agentDesc
+      });
+    };
+    
+    window.addEventListener('openAgentDescription', handleOpenDesc);
+    return () => window.removeEventListener('openAgentDescription', handleOpenDesc);
   }, []);
+
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  const isDuplicateName = allNodes.some(
+    n => n.id !== selectedAgentId && 
+         n.type === 'agent' && 
+         n.data.label?.toString().trim() === label.trim()
+  );
 
   const { saveBlueprint, isDeploying } = useDeployBlueprint();
 
@@ -81,13 +122,11 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
         setMaxTokens((node.data.maxTokens as number) || 100000);
         setMaxIterations((node.data.maxIterations as number) || 25);
         
-        const existingEdge = allEdges.find(e => e.source === selectedAgentId);
-        setTargetAgentId(existingEdge ? existingEdge.target : "");
-        
         setEditorKey(prev => prev + 1); // Force editor refresh
       }
     }
-  }, [selectedAgentId, allNodes, allEdges]);
+  }, [selectedAgentId, allNodes]);
+
 
   const handleConnectionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const connId = e.target.value;
@@ -156,21 +195,6 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
       );
     }
 
-    // Handle Edge Routing Update
-    if (targetAgentId) {
-      // Remove any existing edge from this source
-      updatedEdges = updatedEdges.filter(e => e.source !== targetIdStr);
-      // Add the new edge
-      updatedEdges.push({
-        id: `edge-${Date.now()}`,
-        source: targetIdStr,
-        target: targetAgentId,
-        animated: true,
-      });
-    } else {
-      // Remove edge if they selected "None"
-      updatedEdges = updatedEdges.filter(e => e.source !== targetIdStr);
-    }
 
     setAllNodes(updatedNodes);
     setAllEdges(updatedEdges);
@@ -187,10 +211,12 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
     return <div className="flex h-full w-full items-center justify-center text-muted-foreground">Loading...</div>;
   }
 
+  const selectedNode = allNodes.find(n => n.id === selectedAgentId);
+
   return (
     <div className="flex h-full w-full">
       {/* Main Editor Area */}
-      <div className="flex-1 p-6 flex flex-col h-full overflow-hidden">
+      <div className="flex-1 p-6 flex flex-col h-full overflow-y-auto">
         <div className="mb-6 flex items-start justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Agent Note</h1>
@@ -199,10 +225,10 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
             </p>
           </div>
           
-          {/* Agent Selector */}
+          {/* Item Selector */}
           <div className="w-72 bg-card border rounded-lg p-3 shadow-sm">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-2">
-              Editing Agent
+              Editing Element
             </label>
             <div className="relative">
               <Bot className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -226,44 +252,273 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
             </div>
           </div>
         </div>
-        
-        <div className="flex-1 min-h-0">
-          <NotebookEditor 
-            key={editorKey} // Force remount when agent switches
-            projectId={projectId} 
-            initialContent={systemPrompt} 
-            onChange={(content) => setSystemPrompt(content)} 
-            onAddTool={handleAddTool}
-          />
+        <div className={`transition-all duration-200 flex flex-col ${isFullscreen ? 'fixed inset-4 z-50 bg-card border rounded-xl shadow-2xl overflow-hidden' : 'flex-1'}`}>
+          <div className="flex justify-between items-center bg-muted/30 px-4 py-2 border-b">
+             <span className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">System Prompt</span>
+             <button onClick={() => setIsFullscreen(!isFullscreen)} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1.5 transition-colors bg-background px-2 py-1 rounded border shadow-sm">
+               {isFullscreen ? <><Minimize2 size={12} /> Exit Fullscreen</> : <><Maximize2 size={12} /> Fullscreen</>}
+             </button>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            <NotebookEditor 
+              key={editorKey} // Force remount when agent switches
+              projectId={projectId} 
+              initialContent={systemPrompt} 
+              onChange={(content) => setSystemPrompt(content)} 
+              onAddTool={handleAddTool}
+              editorRef={editorRef}
+              availableAgents={allNodes.filter(n => n.id !== selectedAgentId && n.type === 'agent')}
+              onAddAgentConnection={(targetId) => {
+                if (allEdges.some(ed => ed.source === selectedAgentId && ed.target === targetId)) {
+                  return; // already exists
+                }
+                const newEdgeId = `edge-${Date.now()}`;
+                setAllEdges(edges => [...edges, {
+                  id: newEdgeId,
+                  source: selectedAgentId,
+                  target: targetId,
+                  type: 'configurable',
+                  animated: true,
+                  style: { strokeDasharray: '5,5' },
+                  data: { mode: 'delegate', instruction: '' }
+                }]);
+              }}
+            />
+          </div>
+        </div>
+        {/* Agent Connections Section */}
+        <div className={`transition-all duration-200 flex flex-col ${isConnectionsFullscreen ? 'fixed inset-4 z-50 bg-card border rounded-xl shadow-2xl p-6 overflow-hidden' : 'mt-6 pt-6 border-t'}`}>
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold flex items-center gap-2"><LinkIcon size={20}/> Agent Connections</h3>
+              <p className="text-sm text-muted-foreground mt-1">Manage where this agent sends tasks or results. Each connection can have specific instructions.</p>
+            </div>
+            <button onClick={() => setIsConnectionsFullscreen(!isConnectionsFullscreen)} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1.5 transition-colors bg-background px-2 py-1 rounded border shadow-sm">
+               {isConnectionsFullscreen ? <><Minimize2 size={12} /> Exit Fullscreen</> : <><Maximize2 size={12} /> Fullscreen</>}
+            </button>
+          </div>
+          
+          <div className={`space-y-4 ${isConnectionsFullscreen ? 'overflow-y-auto flex-1 pr-2' : ''}`}>
+            {/* Add Connection Inline UI */}
+            <div className="bg-[#1e1e1e] border border-[#404040] rounded-lg p-4 mb-6 shadow-sm">
+              <h4 className="text-sm font-semibold mb-3 text-[#d4d4d4]">Add New Connection</h4>
+              <div className="flex gap-3 items-end">
+                <div className="flex-1">
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">Target Agent</label>
+                  <select 
+                    id="new-connection-target"
+                    className="w-full p-2 border border-[#404040] rounded-md bg-[#2d2d2d] text-[#d4d4d4] text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  >
+                    <option value="">Select Target...</option>
+                    {allNodes.filter(n => n.id !== selectedAgentId && n.type === 'agent').map(n => (
+                      <option key={n.id} value={n.id}>{n.data.label as string}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="w-1/3">
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">Mode</label>
+                  <select 
+                    id="new-connection-mode"
+                    className="w-full p-2 border border-[#404040] rounded-md bg-[#2d2d2d] text-[#d4d4d4] text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  >
+                    <option value="delegate">Delegate (Handoff)</option>
+                    <option value="sequential">Sequential (Pipeline)</option>
+                  </select>
+                </div>
+                <button 
+                  onClick={() => {
+                    const targetSelect = document.getElementById('new-connection-target') as HTMLSelectElement;
+                    const modeSelect = document.getElementById('new-connection-mode') as HTMLSelectElement;
+                    const targetId = targetSelect.value;
+                    const mode = modeSelect.value;
+                    
+                    if (!targetId) return;
+                    
+                    // Check duplicate
+                    if (allEdges.some(e => e.source === selectedAgentId && e.target === targetId)) {
+                      alert("This agent is already connected to the selected target!");
+                      return;
+                    }
+                    
+                    const newEdge: Edge = {
+                      id: `edge-${Date.now()}`,
+                      source: selectedAgentId,
+                      target: targetId,
+                      type: 'configurable',
+                      animated: true,
+                      data: { mode, instruction: '' }
+                    };
+                    
+                    setAllEdges(prev => [...prev, newEdge]);
+                    targetSelect.value = "";
+                  }}
+                  className="bg-primary text-primary-foreground px-5 py-2 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+
+            {allEdges.filter(e => e.source === selectedAgentId).map(edge => {
+              const targetNode = allNodes.find(n => n.id === edge.target);
+              return (
+                <div key={edge.id} className="border border-[#303030] rounded-lg bg-[#1a1a1a] flex items-center justify-between px-4 py-3 text-sm transition-all hover:border-[#505050] hover:bg-[#1e1e1e] group/edge">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center h-7 text-muted-foreground font-mono text-xs bg-black/40 px-2.5 rounded-md select-none border border-[#333]">
+                      {edge.id}
+                    </div>
+                    
+                    {/* Mode Select */}
+                    <div className="relative group cursor-pointer h-7">
+                      <select
+                        value={edge.data?.mode || 'delegate'}
+                        onChange={(e) => {
+                          const newMode = e.target.value;
+                          setAllEdges(edges => edges.map(ed => 
+                            ed.id === edge.id ? { 
+                              ...ed, 
+                              data: { ...ed.data, mode: newMode },
+                              animated: newMode === 'delegate',
+                              style: newMode === 'delegate' ? { strokeDasharray: '5,5' } : undefined
+                            } : ed
+                          ));
+                        }}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                      >
+                        <option value="delegate" className="bg-[#1e1e1e] text-blue-400">DELEGATE</option>
+                        <option value="sequential" className="bg-[#1e1e1e] text-blue-400">SEQUENTIAL</option>
+                      </select>
+                      <div className="flex items-center h-7 gap-1.5 px-2.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/20 group-hover:bg-blue-500/20 group-hover:border-blue-500/40 transition-all">
+                        {edge.data?.mode || 'Delegate'}
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-60 group-hover:opacity-100"><path d="m6 9 6 6 6-6"/></svg>
+                      </div>
+                    </div>
+                    
+                    {/* Target Agent Select */}
+                    <div className="flex items-center gap-2 relative h-7">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                      
+                      <div className="relative group cursor-pointer h-7">
+                        <select
+                          value={edge.target}
+                          onChange={(e) => {
+                            const newTarget = e.target.value;
+                            if (allEdges.some(ed => ed.id !== edge.id && ed.source === selectedAgentId && ed.target === newTarget)) {
+                              alert("This agent is already connected to the selected target!");
+                              return;
+                            }
+                            setAllEdges(edges => edges.map(ed => 
+                              ed.id === edge.id ? { ...ed, target: newTarget } : ed
+                            ));
+                          }}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                        >
+                          <option value="" disabled className="bg-[#1e1e1e]">Select Target...</option>
+                          {allNodes.filter(n => n.id !== selectedAgentId && n.type === 'agent').map(n => (
+                            <option key={n.id} value={n.id} className="bg-[#1e1e1e]">{n.data.label as string}</option>
+                          ))}
+                        </select>
+                        <div className="flex items-center h-7 gap-2 text-[#e0e0e0] text-xs font-medium px-3 rounded-md border border-[#404040] bg-[#252525] group-hover:bg-[#2a2a2a] group-hover:border-[#505050] transition-all shadow-sm">
+                          {targetNode?.data?.label as string || 'Unknown Agent'}
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground opacity-70 group-hover:opacity-100 transition-opacity"><path d="m6 9 6 6 6-6"/></svg>
+                        </div>
+                      </div>
+                      
+                      <button
+                        onClick={() => {
+                          if (targetNode) setSelectedAgentId(targetNode.id);
+                        }}
+                        className="opacity-0 group-hover/edge:opacity-100 flex items-center gap-1 text-[10px] uppercase font-bold tracking-wider bg-[#303030] hover:bg-primary hover:text-primary-foreground text-muted-foreground px-2 py-1 rounded transition-all ml-1 border border-[#404040] hover:border-primary"
+                        title="Go to Agent"
+                      >
+                        <ExternalLink size={10} /> Edit
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {edge.data?.mode === 'delegate' && (
+                      <button
+                        onClick={() => {
+                          if (editorRef.current && targetNode) {
+                            editorRef.current.chain().focus().insertContent({
+                              type: 'agentDelegate',
+                              attrs: {
+                                agentId: targetNode.id,
+                                agentName: targetNode.data.label,
+                                agentDesc: targetNode.data.system_prompt
+                              }
+                            }).insertContent(' ').run();
+                          } else if (!editorRef.current) {
+                            alert("Editor not ready");
+                          }
+                        }}
+                        className="text-xs bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 border border-blue-500/30 px-2.5 py-1.5 rounded-md transition-colors opacity-0 group-hover/edge:opacity-100 flex items-center gap-1.5"
+                        title="Insert into System Prompt"
+                      >
+                        <Bot size={12} /> Insert to Prompt
+                      </button>
+                    )}
+                    <button 
+                      onClick={() => setAllEdges(edges => edges.filter(e => e.id !== edge.id))}
+                      className="text-muted-foreground hover:text-red-400 transition-all bg-black/20 hover:bg-red-500/10 hover:border-red-500/30 border border-transparent p-1.5 rounded-md opacity-0 group-hover/edge:opacity-100"
+                      title="Remove connection"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+
+            {allEdges.filter(e => e.source === selectedAgentId).length === 0 && (
+              <div className="text-center p-8 border border-dashed border-[#404040] rounded-lg text-muted-foreground bg-[#1e1e1e]">
+                <p className="text-sm">No outgoing connections yet.</p>
+                <p className="text-xs mt-1">Add a connection above.</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Right Sidebar for Configuration */}
       <div className="w-80 border-l bg-card p-6 flex flex-col gap-6 overflow-y-auto shrink-0">
+        {/* AGENT SETTINGS PANEL */}
         <div>
           <h3 className="font-semibold mb-2">Agent Configuration</h3>
           <p className="text-sm text-muted-foreground mb-4">Set the core parameters for this agent.</p>
           
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium block mb-1.5">Agent Name</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-sm font-medium block">Agent Name</label>
+                <span className="text-[10px] px-2 py-0.5 bg-muted rounded-full text-muted-foreground font-mono">
+                  {selectedAgentId}
+                </span>
+              </div>
               <input 
                 type="text" 
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
-                className="w-full p-2 border rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 font-medium" 
+                className={`w-full p-2 border rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 font-medium ${isDuplicateName ? 'border-red-500 ring-1 ring-red-500' : ''}`} 
                 placeholder="e.g. Code Reviewer" 
               />
+              {isDuplicateName && (
+                <p className="text-xs text-red-500 mt-1.5 flex items-center gap-1">
+                  <AlertCircle size={12} />
+                  ชื่อซ้ำกับ Agent อื่น (อาจทำให้ AI สับสน)
+                </p>
+              )}
             </div>
-            
+
             <div>
               <div className="flex justify-between items-center mb-1.5">
                 <label className="text-sm font-medium">AI Connection</label>
-                {connections.length === 0 && (
-                  <div className="text-[10px] text-destructive flex items-center gap-1">
-                    <AlertCircle size={10} /> No connections
-                  </div>
-                )}
+                <Link 
+                  href={`/project/${projectId}/settings`} 
+                  className="text-[10px] flex items-center gap-1 text-primary hover:text-primary/80 font-medium"
+                >
+                  <Plus size={10} /> Add New Connection
+                </Link>
               </div>
               <select 
                 className="w-full p-2 border rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
@@ -351,23 +606,39 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
         </div>
         
         <div className="pt-6 border-t">
-          <h3 className="font-semibold mb-3 flex items-center gap-2"><Link size={16}/> Workflow Routing</h3>
-          <p className="text-[10px] text-muted-foreground mb-3 leading-tight">When this agent finishes its task, send the output to the next agent.</p>
-          
-          <select 
-            className="w-full p-2 border rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer"
-            value={targetAgentId}
-            onChange={(e) => setTargetAgentId(e.target.value)}
-          >
-            <option value="">None (End of flow)</option>
-            {allNodes
-              .filter(n => n.id !== selectedAgentId) // Can't route to self
-              .map(node => (
-                <option key={node.id} value={node.id}>
-                  {node.data.label as string || "Unnamed Agent"}
-                </option>
-            ))}
-          </select>
+          <h3 className="font-semibold mb-3 flex items-center gap-2"><FileCode2 size={16}/> Project Skills</h3>
+          {skills.length === 0 ? (
+            <div className="text-sm text-muted-foreground bg-muted/50 p-4 rounded-lg border border-dashed text-center">
+              No skills created yet.
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {skills.map(skill => (
+                <div key={skill.id} className="flex items-center justify-between bg-amber-500/10 text-amber-600 px-3 py-2 rounded-md text-sm font-medium border border-amber-500/20">
+                  <span className="truncate">{skill.name}</span>
+                  <button 
+                    onClick={() => {
+                      if (editorRef.current) {
+                        editorRef.current.chain().focus().insertContent({
+                          type: 'skillMention',
+                          attrs: {
+                            id: skill.id,
+                            label: skill.name,
+                          }
+                        }).insertContent(' ').run();
+                      } else {
+                        alert("Editor not ready");
+                      }
+                    }}
+                    className="hover:bg-amber-500/20 rounded px-2 py-1 transition-colors text-xs flex items-center gap-1"
+                    title="Insert Skill into Prompt"
+                  >
+                    <Plus size={12} /> Insert
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="pt-6 border-t">
@@ -400,7 +671,7 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
         <div className="mt-auto pt-6">
           <button 
             onClick={handleSave}
-            disabled={isDeploying}
+            disabled={isDeploying || isDuplicateName}
             className="w-full bg-primary text-primary-foreground py-2.5 rounded-md font-medium shadow-md hover:bg-primary/90 transition-all hover:shadow-lg active:scale-95 disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2"
           >
             {isDeploying ? (
@@ -414,6 +685,25 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
           </button>
         </div>
       </div>
+      <Dialog open={agentDialog.isOpen} onOpenChange={(open) => setAgentDialog(p => ({...p, isOpen: open}))}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bot className="w-5 h-5 text-blue-400" />
+              {agentDialog.agentName}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="mt-4">
+            <h4 className="text-sm font-semibold text-muted-foreground mb-2">Capabilities / System Prompt:</h4>
+            <div className="bg-muted/50 p-3 rounded-md text-sm whitespace-pre-wrap max-h-[300px] overflow-y-auto border">
+              {agentDialog.agentDesc || 'No description available for this agent.'}
+            </div>
+            <p className="text-xs text-muted-foreground mt-4 italic">
+              When tasks are delegated to this agent, it will follow these instructions.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

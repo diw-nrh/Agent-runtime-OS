@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
 import { Handle, Position, useReactFlow } from '@xyflow/react';
 import { Bot, AlertCircle, Wrench, Settings2, ChevronDown, ChevronUp } from 'lucide-react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useSettingsStore } from '@/store/settingsStore';
 import { AgentNodeProps } from '@/types/canvas';
+import { NotebookEditor } from '../notebook/Editor';
 
 // Remove the global cache since we now use project settings
 export function AgentNode({ id, data }: AgentNodeProps) {
-  const { updateNodeData } = useReactFlow();
+  const { updateNodeData, getNodes } = useReactFlow();
   const params = useParams();
+  const router = useRouter();
   const projectId = params?.id as string;
   
   const { getProjectSettings } = useSettingsStore();
@@ -36,7 +38,23 @@ export function AgentNode({ id, data }: AgentNodeProps) {
   useEffect(() => { setLocalPrompt(data.system_prompt || ''); }, [data.system_prompt]);
   useEffect(() => { setLocalModel(data.model || ''); }, [data.model]);
 
-  const handleLabelBlur = () => updateNodeData(id, { ...data, label: localLabel });
+  const handleLabelBlur = () => {
+    let finalLabel = localLabel.trim() || 'Unnamed Agent';
+    const otherNodes = getNodes().filter(n => n.id !== id && n.type === 'agent');
+    
+    if (otherNodes.some(n => n.data.label === finalLabel)) {
+      let counter = 1;
+      let newLabel = `${finalLabel} (${counter})`;
+      while (otherNodes.some(n => n.data.label === newLabel)) {
+        counter++;
+        newLabel = `${finalLabel} (${counter})`;
+      }
+      finalLabel = newLabel;
+      setLocalLabel(finalLabel);
+    }
+    
+    updateNodeData(id, { ...data, label: finalLabel });
+  };
   const handlePromptBlur = () => updateNodeData(id, { ...data, system_prompt: localPrompt });
   const handleModelBlur = () => updateNodeData(id, { ...data, model: localModel });
 
@@ -101,8 +119,21 @@ export function AgentNode({ id, data }: AgentNodeProps) {
   const currentToolIds: string[] = data.tools || [];
   const availableToolsToAdd = allProjectTools.filter(t => !currentToolIds.includes(t.id));
 
+  const handleDoubleClick = () => {
+    router.push(`/project/${projectId}/notebook?agentId=${id}`);
+  };
+
+  const handleSourceDoubleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const customEvent = new CustomEvent('openEdgeModal', { detail: { sourceId: id } });
+    window.dispatchEvent(customEvent);
+  };
+
   return (
-    <div className="bg-card text-card-foreground border shadow-sm rounded-xl w-72 overflow-hidden">
+    <div 
+      onDoubleClick={handleDoubleClick}
+      className="bg-card text-card-foreground border shadow-sm rounded-xl w-72 overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+    >
       <Handle type="target" position={Position.Top} className="w-3 h-3 bg-primary border-2 border-background" />
       
       {/* Node Header */}
@@ -125,12 +156,13 @@ export function AgentNode({ id, data }: AgentNodeProps) {
       <div className="p-4 bg-background flex flex-col gap-3 max-h-[400px] overflow-y-auto nodrag">
         <div>
           <div className="text-xs text-muted-foreground mb-1 font-medium">System Prompt</div>
-          <textarea
-            className="w-full text-xs p-2 bg-muted border rounded-md resize-none outline-none focus:border-primary/50 h-20 nodrag"
-            placeholder="You are a helpful assistant..."
-            value={localPrompt}
-            onChange={(e) => setLocalPrompt(e.target.value)}
+          <NotebookEditor
+            projectId={projectId}
+            initialContent={localPrompt}
+            onChange={(content) => setLocalPrompt(content)}
             onBlur={handlePromptBlur}
+            availableAgents={getNodes().filter(n => n.id !== id && n.type === 'agent')}
+            minimal={true}
           />
         </div>
         
@@ -274,7 +306,12 @@ export function AgentNode({ id, data }: AgentNodeProps) {
         </div>
       </div>
       
-      <Handle type="source" position={Position.Bottom} className="w-3 h-3 bg-primary border-2 border-background" />
+      <Handle 
+        type="source" 
+        position={Position.Bottom} 
+        className="w-3 h-3 bg-primary border-2 border-background" 
+        onDoubleClick={handleSourceDoubleClick}
+      />
     </div>
   );
 }

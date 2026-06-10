@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useRef, useState, useEffect } from 'react';
 import {
   ReactFlow,
   MiniMap,
@@ -21,9 +21,16 @@ import { AgentNode } from './AgentNode';
 import { Play, Loader2, X } from 'lucide-react';
 import { useDeployBlueprint } from '../../hooks/useDeployBlueprint';
 import DebuggerPanel from './DebuggerPanel';
+import { useRouter, usePathname } from 'next/navigation';
+import ConfigurableEdge from './ConfigurableEdge';
+import EdgeConfigModal from './EdgeConfigModal';
 
 const nodeTypes = {
   agent: AgentNode,
+};
+
+const edgeTypes = {
+  configurable: ConfigurableEdge,
 };
 
 const initialNodes: Node[] = [];
@@ -51,9 +58,72 @@ export function CanvasEditor({
   const { deploy, saveBlueprint, isDeploying, taskId, logs, closeConsole } = useDeployBlueprint();
 
   const { screenToFlowPosition } = useReactFlow();
+  
+  // Edge Modal State
+  const [edgeModalOpen, setEdgeModalOpen] = useState(false);
+  const [editEdgeId, setEditEdgeId] = useState<string | undefined>();
+  const [createSourceId, setCreateSourceId] = useState<string | undefined>();
+
+  // Global event listener for custom edge clicks and handle clicks
+  React.useEffect(() => {
+    const handleOpenModal = (e: any) => {
+      const { edgeId, sourceId } = e.detail;
+      setEditEdgeId(edgeId);
+      setCreateSourceId(sourceId);
+      setEdgeModalOpen(true);
+    };
+
+    window.addEventListener('openEdgeModal', handleOpenModal);
+    return () => window.removeEventListener('openEdgeModal', handleOpenModal);
+  }, []);
+
+  const handleSaveEdge = (targetId: string, mode: 'delegate' | 'sequential', edgeId?: string) => {
+    if (edgeId) {
+      // Edit existing edge
+      setEdges((eds) => eds.map(e => 
+        e.id === edgeId ? { 
+          ...e, 
+          data: { ...e.data, mode }, 
+          type: 'configurable', 
+          animated: mode === 'delegate',
+          style: mode === 'delegate' ? { strokeDasharray: '5,5' } : undefined
+        } : e
+      ));
+    } else if (createSourceId) {
+      // Create new edge
+      const newEdgeId = `edge-${Date.now()}`;
+      const newEdge: Edge = {
+        id: newEdgeId,
+        source: createSourceId,
+        target: targetId,
+        type: 'configurable',
+        animated: mode === 'delegate',
+        style: mode === 'delegate' ? { strokeDasharray: '5,5' } : undefined,
+        data: { mode, instruction: '' }
+      };
+      setEdges((eds) => addEdge(newEdge, eds));
+    }
+  };
+
+  const handleDeleteEdge = (edgeId: string) => {
+    setEdges((eds) => eds.filter(e => e.id !== edgeId));
+  };
+  
+  const router = useRouter();
+  const pathname = usePathname();
 
   const onConnect = useCallback(
-    (params: Connection | Edge) => setEdges((eds) => addEdge({ ...params, animated: true }, eds)),
+    (params: Connection | Edge) => {
+      const newEdgeId = 'id' in params ? params.id : `edge-${Date.now()}`;
+      setEdges((eds) => addEdge({ 
+        ...params, 
+        id: newEdgeId,
+        type: 'configurable',
+        data: { mode: 'delegate', instruction: '' },
+        animated: true,
+        style: { strokeDasharray: '5,5' }
+      }, eds));
+    },
     [setEdges]
   );
 
@@ -61,6 +131,16 @@ export function CanvasEditor({
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
   }, []);
+
+  const getUniqueAgentName = (currentNodes: Node[]) => {
+    let i = 1;
+    let newLabel = `New Agent`;
+    while (currentNodes.some(n => n.type === 'agent' && n.data.label === newLabel)) {
+      i++;
+      newLabel = `New Agent ${i}`;
+    }
+    return newLabel;
+  };
 
   const onDrop = useCallback(
     (event: React.DragEvent) => {
@@ -73,16 +153,17 @@ export function CanvasEditor({
         y: event.clientY,
       });
 
-      const newNode = {
-        id: `${type}-${Date.now()}`,
-        type,
-        position,
-        data: type === 'agent' 
-          ? { label: `New Agent`, model: 'openai/gpt-4o-mini', system_prompt: 'You are a helpful assistant.' }
-          : { content: '' },
-      };
-
-      setNodes((nds) => nds.concat(newNode));
+      setNodes((nds) => {
+        const newNode = {
+          id: `${type}-${Date.now()}`,
+          type,
+          position,
+          data: type === 'agent' 
+            ? { label: getUniqueAgentName(nds), model: 'openai/gpt-4o-mini', system_prompt: 'You are a helpful assistant.' }
+            : { content: '' },
+        };
+        return nds.concat(newNode);
+      });
     },
     [screenToFlowPosition, setNodes]
   );
@@ -102,6 +183,11 @@ export function CanvasEditor({
         onDrop={onDrop}
         onDragOver={onDragOver}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        defaultEdgeOptions={{ 
+          type: 'configurable',
+          animated: true,
+        }}
         fitView
         className="bg-muted/10"
       >
@@ -112,13 +198,15 @@ export function CanvasEditor({
         <Panel position="top-right" className="m-4 flex gap-2">
           <button 
             onClick={() => {
-              const newNode = {
-                id: `agent-${Date.now()}`,
-                type: 'agent',
-                position: { x: window.innerWidth / 2 - 150, y: window.innerHeight / 2 - 100 },
-                data: { label: `New Agent`, model: '', system_prompt: 'You are a helpful assistant.' },
-              };
-              setNodes((nds) => nds.concat(newNode));
+              setNodes((nds) => {
+                const newNode = {
+                  id: `agent-${Date.now()}`,
+                  type: 'agent',
+                  position: { x: window.innerWidth / 2 - 150, y: window.innerHeight / 2 - 100 },
+                  data: { label: getUniqueAgentName(nds), model: '', system_prompt: 'You are a helpful assistant.' },
+                };
+                return nds.concat(newNode);
+              });
             }}
             className="bg-background text-foreground flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium shadow-md hover:bg-muted transition-all active:scale-95 border"
           >
@@ -157,6 +245,19 @@ export function CanvasEditor({
           agents={nodes.filter(n => n.type === 'agent').map(n => ({ id: n.id, name: n.data.name }))}
         />
       )}
+
+      {/* Edge Configuration Modal */}
+      <EdgeConfigModal
+        isOpen={edgeModalOpen}
+        onClose={() => setEdgeModalOpen(false)}
+        edgeId={editEdgeId}
+        sourceNodeId={createSourceId}
+        nodes={nodes}
+        onSave={handleSaveEdge}
+        onDelete={handleDeleteEdge}
+        initialMode={editEdgeId ? (edges.find(e => e.id === editEdgeId)?.data?.mode as 'delegate'|'sequential') : 'delegate'}
+        initialTargetId={editEdgeId ? edges.find(e => e.id === editEdgeId)?.target : ''}
+      />
     </div>
   );
 }

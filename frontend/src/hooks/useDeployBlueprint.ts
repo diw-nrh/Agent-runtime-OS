@@ -104,7 +104,7 @@ export function useDeployBlueprint() {
             enableCustomLimits: !!n.data.enableCustomLimits,
             maxTokens: n.data.maxTokens || 100000,
             maxIterations: n.data.maxIterations || 25,
-            // Attach specific credentials directly to the agent payload
+            agentNote: n.data.agent_note || '',
             credentials: {
               apiKey: conn?.apiKey || "",
               baseUrl: conn?.baseUrl || ""
@@ -119,7 +119,8 @@ export function useDeployBlueprint() {
           data: n.data || {}
         })),
         edges: edges.map(e => ({
-          ...e
+          ...e,
+          mode: e.data?.mode || 'delegate'
         })),
         metadata: {}
       };
@@ -190,6 +191,7 @@ export function useDeployBlueprint() {
             enableCustomLimits: !!n.data.enableCustomLimits,
             maxTokens: n.data.maxTokens || 100000,
             maxIterations: n.data.maxIterations || 25,
+            agentNote: n.data.agent_note || '',
             credentials: {
               apiKey: conn?.apiKey || "",
               baseUrl: conn?.baseUrl || ""
@@ -203,7 +205,10 @@ export function useDeployBlueprint() {
           measured: n.measured,
           data: n.data || {}
         })),
-        edges: edges.map(e => ({ ...e })),
+        edges: edges.map(e => ({ 
+          ...e,
+          mode: e.data?.mode || 'delegate'
+        })),
         metadata: {}
       };
 
