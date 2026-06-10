@@ -371,7 +371,7 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
                     {/* Mode Select */}
                     <div className="relative group cursor-pointer h-7">
                       <select
-                        value={edge.data?.mode || 'delegate'}
+                        value={(edge.data?.mode as string) || 'delegate'}
                         onChange={(e) => {
                           const newMode = e.target.value;
                           setAllEdges(edges => edges.map(ed => 
@@ -389,7 +389,7 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
                         <option value="sequential" className="bg-[#1e1e1e] text-blue-400">SEQUENTIAL</option>
                       </select>
                       <div className="flex items-center h-7 gap-1.5 px-2.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/20 group-hover:bg-blue-500/20 group-hover:border-blue-500/40 transition-all">
-                        {edge.data?.mode || 'Delegate'}
+                        {(edge.data?.mode as string) || 'Delegate'}
                         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-60 group-hover:opacity-100"><path d="m6 9 6 6 6-6"/></svg>
                       </div>
                     </div>
