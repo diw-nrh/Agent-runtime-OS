@@ -74,10 +74,12 @@ export function CanvasEditor({
       });
 
       const newNode = {
-        id: `agent-${Date.now()}`,
+        id: `${type}-${Date.now()}`,
         type,
         position,
-        data: { label: `New Agent`, model: 'openai/gpt-4o-mini', system_prompt: 'You are a helpful assistant.' },
+        data: type === 'agent' 
+          ? { label: `New Agent`, model: 'openai/gpt-4o-mini', system_prompt: 'You are a helpful assistant.' }
+          : { content: '' },
       };
 
       setNodes((nds) => nds.concat(newNode));
@@ -108,6 +110,21 @@ export function CanvasEditor({
         <Background variant={BackgroundVariant.Dots} gap={16} size={1.5} color="currentColor" className="opacity-10 text-muted-foreground" />
         
         <Panel position="top-right" className="m-4 flex gap-2">
+          <button 
+            onClick={() => {
+              const newNode = {
+                id: `agent-${Date.now()}`,
+                type: 'agent',
+                position: { x: window.innerWidth / 2 - 150, y: window.innerHeight / 2 - 100 },
+                data: { label: `New Agent`, model: '', system_prompt: 'You are a helpful assistant.' },
+              };
+              setNodes((nds) => nds.concat(newNode));
+            }}
+            className="bg-background text-foreground flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium shadow-md hover:bg-muted transition-all active:scale-95 border"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-plus"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+            Add Agent
+          </button>
           <button 
             onClick={() => saveBlueprint(nodes, edges, blueprintId, projectName, projectDescription)}
             disabled={isDeploying}

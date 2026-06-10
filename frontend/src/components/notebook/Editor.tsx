@@ -3,14 +3,16 @@
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Mention from '@tiptap/extension-mention';
-import suggestion from './mentionSuggestion';
+import { createMentionSuggestion } from './mentionSuggestion';
 
 interface NotebookEditorProps {
+  projectId: string;
   initialContent?: string;
   onChange?: (content: string) => void;
+  onAddTool?: (toolId: string) => void;
 }
 
-export function NotebookEditor({ initialContent, onChange }: NotebookEditorProps) {
+export function NotebookEditor({ projectId, initialContent, onChange, onAddTool }: NotebookEditorProps) {
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -18,7 +20,7 @@ export function NotebookEditor({ initialContent, onChange }: NotebookEditorProps
         HTMLAttributes: {
           class: 'bg-primary/20 text-primary px-1 rounded-md font-medium cursor-pointer',
         },
-        suggestion,
+        suggestion: createMentionSuggestion(projectId, onAddTool),
       }),
     ],
     immediatelyRender: false,
