@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { NotebookEditor } from "@/components/notebook/Editor";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useDeployBlueprint } from "@/hooks/useDeployBlueprint";
-import { AlertCircle, Wrench, Bot, Link } from "lucide-react";
+import { AlertCircle, Wrench, Bot, Link, Settings2, ChevronDown, ChevronUp } from "lucide-react";
 import { Node, Edge } from "@xyflow/react";
 
 interface NotebookClientProps {
@@ -36,6 +36,12 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
   const [selectedTools, setSelectedTools] = useState<string[]>([]);
   const [targetAgentId, setTargetAgentId] = useState<string>("");
   
+  // Advanced Limits State
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [enableCustomLimits, setEnableCustomLimits] = useState(false);
+  const [maxTokens, setMaxTokens] = useState(100000);
+  const [maxIterations, setMaxIterations] = useState(25);
+  
   // Editor re-mount key (to force Tiptap to load new content)
   const [editorKey, setEditorKey] = useState(0);
 
@@ -57,6 +63,9 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
       setSystemPrompt("");
       setSelectedTools([]);
       setTargetAgentId("");
+      setEnableCustomLimits(false);
+      setMaxTokens(100000);
+      setMaxIterations(25);
       setEditorKey(prev => prev + 1); // Force editor refresh
     } else {
       const node = allNodes.find(n => n.id === selectedAgentId);
@@ -67,6 +76,10 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
         setProvider(node.data.provider as string || "");
         setSystemPrompt(node.data.system_prompt as string || "");
         setSelectedTools((node.data.tools as string[]) || []);
+        
+        setEnableCustomLimits(!!node.data.enableCustomLimits);
+        setMaxTokens((node.data.maxTokens as number) || 100000);
+        setMaxIterations((node.data.maxIterations as number) || 25);
         
         const existingEdge = allEdges.find(e => e.source === selectedAgentId);
         setTargetAgentId(existingEdge ? existingEdge.target : "");
@@ -115,7 +128,10 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
           connectionId,
           provider,
           system_prompt: systemPrompt,
-          tools: selectedTools
+          tools: selectedTools,
+          enableCustomLimits,
+          maxTokens,
+          maxIterations
         }
       };
       updatedNodes.push(newNode);
@@ -131,7 +147,10 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
             connectionId,
             provider,
             system_prompt: systemPrompt,
-            tools: selectedTools
+            tools: selectedTools,
+            enableCustomLimits,
+            maxTokens,
+            maxIterations
           }
         } : n
       );
@@ -272,6 +291,63 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
               />
             </div>
           </div>
+        </div>
+
+        {/* Advanced Limits Section */}
+        <div className="pt-4 border-t">
+          <button 
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            className="flex items-center justify-between w-full text-sm font-semibold mb-2 text-foreground hover:text-primary transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Settings2 size={16} /> Advanced Limits
+            </div>
+            {showAdvanced ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </button>
+          
+          {showAdvanced && (
+            <div className="mt-3 space-y-4 p-3 bg-muted/30 rounded-lg border border-border/50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-medium text-foreground">Override Global Limits</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">Use custom limits for this agent.</div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-2">
+                  <input 
+                    type="checkbox" 
+                    className="sr-only peer"
+                    checked={enableCustomLimits}
+                    onChange={(e) => setEnableCustomLimits(e.target.checked)}
+                  />
+                  <div className="w-9 h-5 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+                </label>
+              </div>
+              
+              <div className={`space-y-3 transition-opacity ${enableCustomLimits ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
+                <div>
+                  <label className="text-xs font-medium block mb-1">Max Tokens</label>
+                  <input
+                    type="number"
+                    className="w-full text-sm p-2 bg-background border rounded-md outline-none focus:ring-2 focus:ring-primary/50"
+                    value={maxTokens}
+                    onChange={(e) => setMaxTokens(parseInt(e.target.value) || 0)}
+                    min={100}
+                    step={1000}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium block mb-1">Max Iterations (Loops)</label>
+                  <input
+                    type="number"
+                    className="w-full text-sm p-2 bg-background border rounded-md outline-none focus:ring-2 focus:ring-primary/50"
+                    value={maxIterations}
+                    onChange={(e) => setMaxIterations(parseInt(e.target.value) || 0)}
+                    min={1}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
         
         <div className="pt-6 border-t">

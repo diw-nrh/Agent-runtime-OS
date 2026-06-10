@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Network, BookOpen, TerminalSquare, Settings } from "lucide-react";
+import { Network, BookOpen, TerminalSquare, Settings, Activity } from "lucide-react";
 
 export function ProjectNavTabs({ projectId }: { projectId: string }) {
   const pathname = usePathname() || "";
@@ -11,6 +11,7 @@ export function ProjectNavTabs({ projectId }: { projectId: string }) {
   // - Settings: /project/[id]/settings
   // - Playground: /project/[id]/playground
   // - Note: /project/[id]/notebook
+  // - Runs: /project/[id]/runs
   // - Canvas: exactly /project/[id]
   const isActive = (path: string) => {
     if (path === `/project/${projectId}`) {
@@ -50,6 +51,13 @@ export function ProjectNavTabs({ projectId }: { projectId: string }) {
       >
         <TerminalSquare className="w-4 h-4" />
         Playground
+      </Link>
+      <Link 
+        href={`/project/${projectId}/runs`} 
+        className={getTabClass(`/project/${projectId}/runs`)}
+      >
+        <Activity className="w-4 h-4" />
+        Audit Logs
       </Link>
       <div className="w-px h-6 bg-border mx-1"></div>
       <Link 

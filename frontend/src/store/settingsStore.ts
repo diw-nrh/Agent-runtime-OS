@@ -23,10 +23,18 @@ export interface CustomMcpTool {
   };
 }
 
+export interface ExecutionSettings {
+  enableGlobalLimits: boolean;
+  maxTokensPerRun: number;
+  maxIterations: number;
+  enableFaultTolerance: boolean;
+}
+
 export interface ProjectSettings {
   connections: AIConnection[];
   linkedTools: any[]; // Tools linked from the global marketplace
   customTools: CustomMcpTool[]; // Private tools created in this project
+  executionSettings?: ExecutionSettings;
 }
 
 interface SettingsState {
@@ -45,6 +53,8 @@ interface SettingsState {
   updateCustomTool: (projectId: string, toolId: string, updates: Partial<CustomMcpTool>) => void;
   deleteCustomTool: (projectId: string, toolId: string) => void;
 
+  updateExecutionSettings: (projectId: string, settings: Partial<ExecutionSettings>) => void;
+
   getProjectSettings: (projectId: string) => ProjectSettings;
   clearProjectSettings: (projectId: string) => void;
 }
@@ -53,6 +63,12 @@ const defaultSettings: ProjectSettings = {
   connections: [],
   linkedTools: [],
   customTools: [],
+  executionSettings: {
+    enableGlobalLimits: true,
+    maxTokensPerRun: 100000,
+    maxIterations: 25,
+    enableFaultTolerance: false,
+  }
 };
 
 export const useSettingsStore = create<SettingsState>()(
@@ -181,8 +197,30 @@ export const useSettingsStore = create<SettingsState>()(
         };
       }),
       
+      updateExecutionSettings: (projectId, settings) => set((state) => {
+        const proj = state.projects[projectId] || { ...defaultSettings };
+        return {
+          projects: {
+            ...state.projects,
+            [projectId]: {
+              ...proj,
+              executionSettings: {
+                ...(proj.executionSettings || defaultSettings.executionSettings!),
+                ...settings
+              }
+            }
+          }
+        };
+      }),
+      
       getProjectSettings: (projectId) => {
-        return get().projects[projectId] || { ...defaultSettings };
+        const proj = get().projects[projectId];
+        if (!proj) return { ...defaultSettings };
+        // Ensure executionSettings is populated if it's missing from old stored states
+        if (!proj.executionSettings) {
+          proj.executionSettings = defaultSettings.executionSettings;
+        }
+        return proj;
       },
       
       clearProjectSettings: (projectId) => set((state) => {

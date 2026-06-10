@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Handle, Position, useReactFlow } from '@xyflow/react';
-import { Bot, AlertCircle, Wrench } from 'lucide-react';
+import { Bot, AlertCircle, Wrench, Settings2, ChevronDown, ChevronUp } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useSettingsStore } from '@/store/settingsStore';
 import { AgentNodeProps } from '@/types/canvas';
@@ -24,6 +24,12 @@ export function AgentNode({ id, data }: AgentNodeProps) {
   const [localLabel, setLocalLabel] = useState(data.label || '');
   const [localPrompt, setLocalPrompt] = useState(data.system_prompt || '');
   const [localModel, setLocalModel] = useState(data.model || '');
+  
+  // Advanced Limits State
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [enableCustomLimits, setEnableCustomLimits] = useState(!!data.enableCustomLimits);
+  const [maxTokens, setMaxTokens] = useState(data.maxTokens || 100000);
+  const [maxIterations, setMaxIterations] = useState(data.maxIterations || 25);
 
   // Sync local state if data changes from outside (e.g. loading a new blueprint)
   useEffect(() => { setLocalLabel(data.label || ''); }, [data.label]);
@@ -33,6 +39,20 @@ export function AgentNode({ id, data }: AgentNodeProps) {
   const handleLabelBlur = () => updateNodeData(id, { ...data, label: localLabel });
   const handlePromptBlur = () => updateNodeData(id, { ...data, system_prompt: localPrompt });
   const handleModelBlur = () => updateNodeData(id, { ...data, model: localModel });
+
+  const handleCustomLimitsToggle = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const checked = e.target.checked;
+    setEnableCustomLimits(checked);
+    updateNodeData(id, { ...data, enableCustomLimits: checked, maxTokens, maxIterations });
+  };
+
+  const handleTokensBlur = () => {
+    updateNodeData(id, { ...data, maxTokens });
+  };
+
+  const handleIterationsBlur = () => {
+    updateNodeData(id, { ...data, maxIterations });
+  };
 
   const handleConnectionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const connId = e.target.value;
@@ -195,6 +215,62 @@ export function AgentNode({ id, data }: AgentNodeProps) {
               disabled={!currentConnection && !data.provider}
             />
           </div>
+        </div>
+
+        {/* Advanced Limits Section */}
+        <div className="border-t pt-2 mt-1">
+          <button 
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            className="flex items-center justify-between w-full text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <div className="flex items-center gap-1">
+              <Settings2 size={12} /> Advanced Limits
+            </div>
+            {showAdvanced ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+          </button>
+          
+          {showAdvanced && (
+            <div className="mt-3 space-y-3 p-2 bg-muted/30 rounded-md border border-border/50">
+              <div className="flex items-center justify-between">
+                <div className="text-[10px] font-medium text-muted-foreground">Override Global Limits</div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    className="sr-only peer"
+                    checked={enableCustomLimits}
+                    onChange={handleCustomLimitsToggle}
+                  />
+                  <div className="w-7 h-4 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-primary"></div>
+                </label>
+              </div>
+              
+              <div className={`space-y-2 transition-opacity ${enableCustomLimits ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
+                <div>
+                  <div className="text-[10px] text-muted-foreground mb-1">Max Tokens</div>
+                  <input
+                    type="number"
+                    className="w-full text-xs p-1.5 bg-background border rounded-md outline-none focus:border-primary/50 nodrag"
+                    value={maxTokens}
+                    onChange={(e) => setMaxTokens(parseInt(e.target.value) || 0)}
+                    onBlur={handleTokensBlur}
+                    min={100}
+                    step={1000}
+                  />
+                </div>
+                <div>
+                  <div className="text-[10px] text-muted-foreground mb-1">Max Iterations</div>
+                  <input
+                    type="number"
+                    className="w-full text-xs p-1.5 bg-background border rounded-md outline-none focus:border-primary/50 nodrag"
+                    value={maxIterations}
+                    onChange={(e) => setMaxIterations(parseInt(e.target.value) || 0)}
+                    onBlur={handleIterationsBlur}
+                    min={1}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
       

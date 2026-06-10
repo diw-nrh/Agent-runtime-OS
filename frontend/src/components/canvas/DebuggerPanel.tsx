@@ -6,16 +6,16 @@ interface DebuggerPanelProps {
   taskId: string;
   logs: StreamLog[];
   onClose: () => void;
-  agents?: any[];
+  agents?: {id: string, name: string}[];
   isOverlay?: boolean;
 }
 
-function TraceItem({ trace, renderIcon, formatContent, agents, isDeveloperMode }: { trace: StreamLog, renderIcon: any, formatContent: any, agents?: any[], isDeveloperMode: boolean }) {
+function TraceItem({ trace, renderIcon, formatContent, agents, isDeveloperMode }: { trace: StreamLog, renderIcon: any, formatContent: any, agents?: {id: string, name: string}[], isDeveloperMode: boolean }) {
   const [showRaw, setShowRaw] = useState(false);
   const type = trace.data?.type || 'MESSAGE';
   const rawAgentId = trace.data?.agentId || 'Agent';
   const agent = agents?.find(a => a.id === rawAgentId);
-  const agentName = agent ? agent.name : (rawAgentId.length > 8 ? 'Agent' : rawAgentId);
+  const agentName = agent ? `${agent.id} ${agent.name}` : (rawAgentId.length > 8 ? 'Agent' : rawAgentId);
   
   const rawContent = JSON.stringify(trace.data, null, 2);
 

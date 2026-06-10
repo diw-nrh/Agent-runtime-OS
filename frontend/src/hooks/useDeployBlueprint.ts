@@ -76,6 +76,7 @@ export function useDeployBlueprint() {
         name: name || "Untitled Project",
         description: description || "A custom AI agent workflow blueprint.",
         version: "1.0.0",
+        executionSettings: settings.executionSettings,
         agents: nodes.map(n => {
           // Find the selected connection for this node
           const conn = connections.find(c => c.id === n.data.connectionId);
@@ -100,6 +101,9 @@ export function useDeployBlueprint() {
               }
               return { id: toolId, isGlobal: true };
             }),
+            enableCustomLimits: !!n.data.enableCustomLimits,
+            maxTokens: n.data.maxTokens || 100000,
+            maxIterations: n.data.maxIterations || 25,
             // Attach specific credentials directly to the agent payload
             credentials: {
               apiKey: conn?.apiKey || "",
@@ -160,6 +164,7 @@ export function useDeployBlueprint() {
         name: name || "Untitled Project",
         description: description || "A custom AI agent workflow blueprint.",
         version: "1.0.0",
+        executionSettings: settings.executionSettings,
         agents: nodes.map(n => {
           const conn = connections.find(c => c.id === n.data.connectionId);
           return {
@@ -182,6 +187,9 @@ export function useDeployBlueprint() {
               }
               return { id: toolId, isGlobal: true };
             }),
+            enableCustomLimits: !!n.data.enableCustomLimits,
+            maxTokens: n.data.maxTokens || 100000,
+            maxIterations: n.data.maxIterations || 25,
             credentials: {
               apiKey: conn?.apiKey || "",
               baseUrl: conn?.baseUrl || ""
