@@ -404,7 +404,7 @@ def build_agent_graph(blueprint: AgentBlueprint, mcp_tool_map: dict = None, task
         final_system_prompt = agent.system_prompt
         
         # Inject OS Platform Web Syntax Skill (Mandatory for all agents)
-        final_system_prompt += "\n\n## Platform Web Syntax\nPress '/' for commands or type '@' to attach Tools. Use @alias followed by the agent name to hand off tasks to another Agent."
+        final_system_prompt += "\n\n## Platform Web Syntax\nPress '/' for commands or type '@' to attach Tools. Use @alias [Agent] to hand off tasks to another Agent."
         
         # Backward compatibility for old agent_note
         if getattr(agent, "agent_note", None) and str(agent.agent_note).strip():
