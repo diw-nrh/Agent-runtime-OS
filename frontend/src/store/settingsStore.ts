@@ -21,6 +21,8 @@ export interface CustomMcpTool {
     command?: string; // For Stdio
     args?: string[]; // For Stdio
   };
+  globalPermission?: 'allow' | 'ask' | 'block' | 'custom';
+  toolPermissions?: Record<string, 'allow' | 'ask' | 'block'>;
 }
 
 export interface ExecutionSettings {
@@ -38,7 +40,7 @@ export interface Skill {
 
 export interface ProjectSettings {
   connections: AIConnection[];
-  linkedTools: any[]; // Tools linked from the global marketplace
+  linkedTools: any[]; // Tools linked from the global marketplace (can have permissions)
   customTools: CustomMcpTool[]; // Private tools created in this project
   skills?: Skill[]; // Skills written in Markdown
   executionSettings?: ExecutionSettings;
@@ -54,6 +56,7 @@ interface SettingsState {
   
   // MCP Tool Actions
   linkTool: (projectId: string, tool: any) => void;
+  updateLinkedTool: (projectId: string, toolId: string, updates: any) => void;
   unlinkTool: (projectId: string, toolId: string) => void;
   
   addCustomTool: (projectId: string, tool: CustomMcpTool) => void;
@@ -138,12 +141,30 @@ export const useSettingsStore = create<SettingsState>()(
         // Check if already linked
         if (proj.linkedTools?.some(t => t.id === tool.id)) return state;
         
+        const toolWithPerms = { ...tool, globalPermission: 'allow' };
+        
         return {
           projects: {
             ...state.projects,
             [projectId]: {
               ...proj,
-              linkedTools: [...(proj.linkedTools || []), tool]
+              linkedTools: [...(proj.linkedTools || []), toolWithPerms]
+            }
+          }
+        };
+      }),
+      
+      updateLinkedTool: (projectId, toolId, updates) => set((state) => {
+        const project = state.projects[projectId];
+        if (!project) return state;
+        return {
+          projects: {
+            ...state.projects,
+            [projectId]: {
+              ...project,
+              linkedTools: project.linkedTools.map(t => 
+                t.id === toolId ? { ...t, ...updates } : t
+              )
             }
           }
         };

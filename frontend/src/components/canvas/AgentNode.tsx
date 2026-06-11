@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Handle, Position, useReactFlow } from '@xyflow/react';
-import { Bot, AlertCircle, Wrench, Settings2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Bot, AlertCircle, Wrench, Settings2, ChevronDown, ChevronUp, GripHorizontal } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSettingsStore } from '@/store/settingsStore';
+import { Select } from '@/components/ui/Select';
 import { AgentNodeProps } from '@/types/canvas';
 import { NotebookEditor } from '../notebook/Editor';
 
 // Remove the global cache since we now use project settings
-export function AgentNode({ id, data }: AgentNodeProps) {
+export function AgentNode({ id, data, selected }: AgentNodeProps & { selected?: boolean }) {
   const { updateNodeData, getNodes } = useReactFlow();
   const params = useParams();
   const router = useRouter();
@@ -72,8 +73,7 @@ export function AgentNode({ id, data }: AgentNodeProps) {
     updateNodeData(id, { ...data, maxIterations });
   };
 
-  const handleConnectionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const connId = e.target.value;
+  const handleConnectionChange = (connId: string) => {
     if (!connId) {
       updateNodeData(id, { ...data, connectionId: undefined, provider: undefined, model: undefined });
       setLocalModel('');
@@ -98,15 +98,12 @@ export function AgentNode({ id, data }: AgentNodeProps) {
     }
   };
 
-  const handleAddTool = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const toolId = e.target.value;
+  const handleAddTool = (toolId: string) => {
     if (!toolId) return;
     const currentTools: string[] = (data.tools as string[]) || [];
     if (!currentTools.includes(toolId)) {
       updateNodeData(id, { ...data, tools: [...currentTools, toolId] });
     }
-    // Reset select
-    e.target.value = "";
   };
 
   const handleRemoveTool = (toolId: string) => {
@@ -133,12 +130,12 @@ export function AgentNode({ id, data }: AgentNodeProps) {
   return (
     <div 
       onDoubleClick={handleDoubleClick}
-      className="bg-card text-card-foreground border shadow-sm rounded-xl w-72 overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+      className={`glass-card text-card-foreground rounded-xl w-72 overflow-hidden cursor-pointer glass-hover ${selected ? 'ring-2 ring-primary/80 shadow-[0_0_15px_rgba(255,255,255,0.1)]' : ''}`}
     >
       <Handle type="target" position={Position.Top} className="w-3 h-3 bg-primary border-2 border-background" />
       
       {/* Node Header */}
-      <div className="bg-primary/10 p-3 flex items-center justify-between border-b">
+      <div className="bg-primary/5 backdrop-blur-sm p-3 flex items-center justify-between border-b border-border/50">
         <div className="flex items-center gap-2 w-full">
           <div className="bg-primary text-primary-foreground p-1.5 rounded-md shadow-sm shrink-0">
             <Bot size={16} />
@@ -154,7 +151,7 @@ export function AgentNode({ id, data }: AgentNodeProps) {
       </div>
       
       {/* Node Body */}
-      <div className="p-4 bg-background flex flex-col gap-3 max-h-[400px] overflow-y-auto nodrag">
+      <div className="p-4 bg-transparent flex flex-col gap-3 max-h-[400px] overflow-y-auto nodrag">
         <div>
           <div className="text-xs text-muted-foreground mb-1 font-medium">System Prompt</div>
           <NotebookEditor
@@ -179,18 +176,16 @@ export function AgentNode({ id, data }: AgentNodeProps) {
             </div>
           ) : (
             <div className="space-y-2">
-              <select 
-                className="w-full text-xs p-2 bg-muted border rounded-md outline-none focus:border-primary/50 nodrag cursor-pointer"
-                onChange={handleAddTool}
+              <Select 
+                className="nodrag"
                 value=""
-              >
-                <option value="" disabled>+ Add Tool...</option>
-                {availableToolsToAdd.map(tool => (
-                  <option key={tool.id} value={tool.id}>
-                    {tool.type ? `[Private] ${tool.name}` : tool.name}
-                  </option>
-                ))}
-              </select>
+                onChange={handleAddTool}
+                placeholder="+ Add Tool..."
+                options={availableToolsToAdd.map(tool => ({
+                  value: tool.id,
+                  label: tool.type ? `[Private] ${tool.name}` : tool.name
+                }))}
+              />
               
               {/* Selected Tool Tags */}
               {currentToolIds.length > 0 && (
@@ -222,18 +217,16 @@ export function AgentNode({ id, data }: AgentNodeProps) {
                 </div>
               )}
             </div>
-            <select
-              className="w-full text-xs p-2 bg-muted border rounded-md outline-none focus:border-primary/50 nodrag"
+            <Select
+              className="nodrag"
               value={(data.connectionId as string) || ''}
               onChange={handleConnectionChange}
-            >
-              <option value="" disabled>Select Connection...</option>
-              {connections.map(conn => (
-                <option key={conn.id} value={conn.id}>
-                  {conn.name}
-                </option>
-              ))}
-            </select>
+              placeholder="Select Connection..."
+              options={connections.map(conn => ({
+                value: conn.id,
+                label: conn.name
+              }))}
+            />
           </div>
           
           <div>
@@ -307,6 +300,11 @@ export function AgentNode({ id, data }: AgentNodeProps) {
         </div>
       </div>
       
+      {/* Drag Handle Area */}
+      <div className="bg-primary/5 border-t border-border/50 py-1 flex justify-center items-center text-muted-foreground/30 hover:text-muted-foreground/80 transition-colors cursor-grab active:cursor-grabbing">
+        <GripHorizontal size={16} />
+      </div>
+
       <Handle 
         type="source" 
         position={Position.Bottom} 

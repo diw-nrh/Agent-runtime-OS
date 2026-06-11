@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import { Clock, CheckCircle2, XCircle, Loader2, Wrench, MessageSquare, Brain, FileJson, ChevronRight, Activity, Zap } from "lucide-react";
+import { Select } from "@/components/ui/Select";
 
 // Types derived from Prisma
 interface TraceStep {
@@ -107,26 +108,26 @@ export function RunsViewerClient({ runs, projectId, agents = [] }: { runs: Run[]
               />
               <span className="text-xs font-medium text-foreground">Date Range</span>
             </label>
-            <div className="pl-5">
-              <select 
-                value={presetFilter}
-                onFocus={() => {
+            <div className="pl-5" onClick={() => {
                   if (filterMode !== "preset") {
                     setFilterMode("preset");
                     setSelectedRunId(null);
                   }
-                }}
-                onChange={(e) => {
-                  setPresetFilter(e.target.value);
+                }}>
+              <Select 
+                value={presetFilter}
+                onChange={(val) => {
+                  setPresetFilter(val);
                   setSelectedRunId(null);
                 }}
-                className={`w-full bg-background border text-xs rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary/50 cursor-pointer text-foreground shadow-sm transition-opacity ${filterMode !== "preset" ? "opacity-50 border-transparent" : "border-border"}`}
-              >
-                <option value="all">All Time</option>
-                <option value="today">Today</option>
-                <option value="7days">Last 7 Days</option>
-                <option value="30days">Last 30 Days</option>
-              </select>
+                className={filterMode !== "preset" ? "opacity-50" : ""}
+                options={[
+                  { value: "all", label: "All Time" },
+                  { value: "today", label: "Today" },
+                  { value: "7days", label: "Last 7 Days" },
+                  { value: "30days", label: "Last 30 Days" }
+                ]}
+              />
             </div>
 
             <div className="h-px bg-border/50 my-1"></div>

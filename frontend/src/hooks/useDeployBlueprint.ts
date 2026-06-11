@@ -181,9 +181,29 @@ export function useDeployBlueprint() {
                   id: custom.id, 
                   name: custom.name, 
                   type: custom.type, 
-                  url: custom.url, 
-                  command: custom.command, 
-                  args: custom.args 
+                  url: custom.config?.url || custom.url, 
+                  command: custom.config?.command || custom.command, 
+                  args: custom.config?.args || custom.args,
+                  permissions: {
+                    global: custom.globalPermission || 'allow',
+                    tools: custom.toolPermissions || {}
+                  }
+                };
+              }
+              const linked = settings.linkedTools?.find(t => t.id === toolId);
+              if (linked) {
+                return { 
+                  id: linked.id, 
+                  isGlobal: true,
+                  name: linked.name,
+                  type: linked.type || 'stdio',
+                  url: linked.config?.url,
+                  command: linked.config?.command || linked.command,
+                  args: linked.config?.args || linked.args,
+                  permissions: {
+                    global: linked.globalPermission || 'allow',
+                    tools: linked.toolPermissions || {}
+                  }
                 };
               }
               return { id: toolId, isGlobal: true };

@@ -9,6 +9,7 @@ import { Node, Edge } from "@xyflow/react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select } from "@/components/ui/Select";
 
 interface NotebookClientProps {
   projectId: string;
@@ -67,6 +68,9 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
 
   const [isConnectionsFullscreen, setIsConnectionsFullscreen] = useState(false);
   const [showNewAgentConfirm, setShowNewAgentConfirm] = useState(false);
+  
+  const [newConnTarget, setNewConnTarget] = useState("");
+  const [newConnMode, setNewConnMode] = useState("delegate");
 
   // Fix hydration mismatch for Zustand persist
   const [isMounted, setIsMounted] = useState(false);
@@ -137,8 +141,7 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
     }
   }, [selectedAgentId]);
 
-  const handleConnectionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const connId = e.target.value;
+  const handleConnectionChange = (connId: string) => {
     if (!connId) {
       setConnectionId("");
       setProvider("");
@@ -236,7 +239,7 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
           </div>
           
           {/* Item Selector */}
-          <div className="w-72 bg-card border rounded-lg p-3 shadow-sm">
+          <div className="w-72 glass-panel rounded-lg p-3 relative z-20">
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 Editing Element
@@ -249,27 +252,21 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
                 <Plus className="w-3.5 h-3.5" />
               </button>
             </div>
-            <div className="relative">
-              <Bot className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <select 
-                className="w-full pl-9 pr-4 py-2 border rounded-md bg-background text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none cursor-pointer"
-                value={selectedAgentId}
-                onChange={(e) => setSelectedAgentId(e.target.value)}
-              >
-                <optgroup label="Canvas Agents">
-                  {allNodes.map(node => (
-                    <option key={node.id} value={node.id}>
-                      {node.data.label as string || "Unnamed Agent"}
-                    </option>
-                  ))}
-                  {allNodes.length === 0 && <option disabled>No agents found</option>}
-                </optgroup>
-              </select>
-            </div>
+            <Select
+              value={selectedAgentId}
+              onChange={(val) => setSelectedAgentId(val)}
+              icon={<Bot size={16} className="text-primary" />}
+              groups={[{
+                label: "Canvas Agents",
+                options: allNodes.length > 0 
+                  ? allNodes.map(n => ({ value: n.id, label: n.data.label as string || "Unnamed Agent" }))
+                  : [{ value: "", label: "No agents found", disabled: true }]
+              }]}
+            />
           </div>
         </div>
-        <div className={`transition-all duration-200 flex flex-col ${isFullscreen ? 'fixed inset-4 z-50 bg-card border rounded-xl shadow-2xl overflow-hidden' : 'flex-1'}`}>
-          <div className="flex justify-between items-center bg-muted/30 px-4 py-2 border-b">
+        <div className={`transition-all duration-300 flex flex-col ${isFullscreen ? 'fixed inset-4 z-50 glass-card rounded-xl shadow-2xl overflow-hidden' : 'flex-1 min-h-[400px] glass-card rounded-xl overflow-hidden border border-border/50 shadow-sm'}`}>
+          <div className="flex justify-between items-center bg-primary/5 backdrop-blur-sm px-4 py-2 border-b border-border/50">
              <span className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">System Prompt</span>
              <button onClick={() => setIsFullscreen(!isFullscreen)} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1.5 transition-colors bg-background px-2 py-1 rounded border shadow-sm">
                {isFullscreen ? <><Minimize2 size={12} /> Exit Fullscreen</> : <><Maximize2 size={12} /> Fullscreen</>}
@@ -303,7 +300,7 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
           </div>
         </div>
         {/* Agent Connections Section */}
-        <div className={`transition-all duration-200 flex flex-col ${isConnectionsFullscreen ? 'fixed inset-4 z-50 bg-card border rounded-xl shadow-2xl p-6 overflow-hidden' : 'mt-6 pt-6 border-t'}`}>
+        <div className={`transition-all duration-300 flex flex-col ${isConnectionsFullscreen ? 'fixed inset-4 z-50 glass-card rounded-xl shadow-2xl p-6 overflow-hidden' : 'mt-6 pt-6 border-t border-border/50'}`}>
           <div className="mb-4 flex items-center justify-between">
             <div>
               <h3 className="text-lg font-semibold flex items-center gap-2"><LinkIcon size={20}/> Agent Connections</h3>
@@ -316,37 +313,33 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
           
           <div className={`space-y-4 ${isConnectionsFullscreen ? 'overflow-y-auto flex-1 pr-2' : ''}`}>
             {/* Add Connection Inline UI */}
-            <div className="bg-[#1e1e1e] border border-[#404040] rounded-lg p-4 mb-6 shadow-sm">
+            <div className="glass-panel border-white/5 rounded-lg p-4 mb-6 shadow-sm">
               <h4 className="text-sm font-semibold mb-3 text-[#d4d4d4]">Add New Connection</h4>
               <div className="flex gap-3 items-end">
                 <div className="flex-1">
                   <label className="text-xs font-medium text-muted-foreground block mb-1">Target Agent</label>
-                  <select 
-                    id="new-connection-target"
-                    className="w-full p-2 border border-[#404040] rounded-md bg-[#2d2d2d] text-[#d4d4d4] text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  >
-                    <option value="">Select Target...</option>
-                    {allNodes.filter(n => n.id !== selectedAgentId && n.type === 'agent').map(n => (
-                      <option key={n.id} value={n.id}>{n.data.label as string}</option>
-                    ))}
-                  </select>
+                  <Select 
+                    value={newConnTarget}
+                    onChange={(val) => setNewConnTarget(val)}
+                    placeholder="Select Target..."
+                    options={allNodes.filter(n => n.id !== selectedAgentId && n.type === 'agent').map(n => ({ value: n.id, label: n.data.label as string || "Unnamed Agent" }))}
+                  />
                 </div>
                 <div className="w-1/3">
                   <label className="text-xs font-medium text-muted-foreground block mb-1">Mode</label>
-                  <select 
-                    id="new-connection-mode"
-                    className="w-full p-2 border border-[#404040] rounded-md bg-[#2d2d2d] text-[#d4d4d4] text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  >
-                    <option value="delegate">Delegate (Handoff)</option>
-                    <option value="sequential">Sequential (Pipeline)</option>
-                  </select>
+                  <Select 
+                    value={newConnMode}
+                    onChange={(val) => setNewConnMode(val)}
+                    options={[
+                      { value: "delegate", label: "Delegate (Handoff)" },
+                      { value: "sequential", label: "Sequential (Pipeline)" }
+                    ]}
+                  />
                 </div>
                 <button 
                   onClick={() => {
-                    const targetSelect = document.getElementById('new-connection-target') as HTMLSelectElement;
-                    const modeSelect = document.getElementById('new-connection-mode') as HTMLSelectElement;
-                    const targetId = targetSelect.value;
-                    const mode = modeSelect.value;
+                    const targetId = newConnTarget;
+                    const mode = newConnMode;
                     
                     if (!targetId) return;
                     
@@ -536,18 +529,12 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
                   <Plus size={10} /> Add New Connection
                 </Link>
               </div>
-              <select 
-                className="w-full p-2 border rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+              <Select 
                 value={connectionId}
                 onChange={handleConnectionChange}
-              >
-                <option value="" disabled>Select Connection...</option>
-                {connections.map(conn => (
-                  <option key={conn.id} value={conn.id}>
-                    {conn.name}
-                  </option>
-                ))}
-              </select>
+                placeholder="Select Connection..."
+                options={connections.map(conn => ({ value: conn.id, label: conn.name }))}
+              />
             </div>
 
             <div>

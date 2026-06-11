@@ -156,8 +156,8 @@ Before finishing the task, verify the following:
   return (
     <div className="h-full flex bg-background">
       {/* Left Sidebar - Skill List */}
-      <div className="w-64 border-r bg-muted/20 flex flex-col h-full">
-        <div className="p-4 border-b flex justify-between items-center bg-card">
+      <div className="w-64 border-r border-border/50 bg-background/40 backdrop-blur-md flex flex-col h-full z-10">
+        <div className="p-4 border-b border-border/50 flex justify-between items-center glass-panel">
           <h2 className="font-semibold text-sm flex items-center gap-2">
             <FileCode2 className="w-4 h-4 text-primary" />
             Project Skills
@@ -241,10 +241,10 @@ Before finishing the task, verify the following:
       </div>
 
       {/* Main Content - Editor */}
-      <div className="flex-1 flex flex-col h-full bg-card">
+      <div className="flex-1 flex flex-col h-full bg-transparent relative">
         {selectedSkillId ? (
           <>
-            <div className="border-b p-4 flex items-center justify-between bg-card">
+            <div className="border-b border-border/50 p-4 flex items-center justify-between glass-panel z-10">
               <input
                 type="text"
                 value={name}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Terminal, BrainCircuit, Wrench, MessageSquare, Loader2, Database, AlertTriangle, Code2 } from 'lucide-react';
+import { X, Terminal, BrainCircuit, Wrench, MessageSquare, Loader2, Database, AlertTriangle, Code2, ShieldAlert, Check } from 'lucide-react';
 import { StreamLog, TraceData } from '@/hooks/useDeployBlueprint';
 
 interface DebuggerPanelProps {
@@ -10,10 +10,13 @@ interface DebuggerPanelProps {
   isOverlay?: boolean;
 }
 
-function TraceItem({ trace, renderIcon, formatContent, agents, isDeveloperMode }: { trace: StreamLog, renderIcon: any, formatContent: any, agents?: {id: string, name: string}[], isDeveloperMode: boolean }) {
+function TraceItem({ trace, renderIcon, formatContent, agents, isDeveloperMode, taskId }: { trace: StreamLog, renderIcon: any, formatContent: any, agents?: {id: string, name: string}[], isDeveloperMode: boolean, taskId: string }) {
   const [showRaw, setShowRaw] = useState(false);
-  const type = trace.data?.type || 'MESSAGE';
-  const rawAgentId = trace.data?.agentId || 'Agent';
+  const [actioned, setActioned] = useState<'approve' | 'reject' | null>(null);
+  
+  const isApproval = trace.status === 'TOOL_APPROVAL_REQUEST';
+  const type = isApproval ? 'APPROVAL' : (trace.data?.type || 'MESSAGE');
+  const rawAgentId = trace.data?.agentId || (isApproval ? 'Security' : 'Agent');
   const agent = agents?.find(a => a.id === rawAgentId);
   const agentName = agent ? `${agent.id} ${agent.name}` : (rawAgentId.length > 8 ? 'Agent' : rawAgentId);
   
@@ -42,11 +45,50 @@ function TraceItem({ trace, renderIcon, formatContent, agents, isDeveloperMode }
           </button>
         )}
       </div>
-      <div className={`rounded-md p-3 text-xs overflow-x-auto max-h-64 overflow-y-auto custom-scrollbar ${isDeveloperMode ? 'bg-white/5 border border-white/10 text-gray-300 font-mono' : 'bg-white/5 text-gray-200'}`}>
+      <div className={`rounded-md p-3 text-xs overflow-x-auto max-h-64 overflow-y-auto custom-scrollbar ${isDeveloperMode ? 'bg-white/5 border border-white/10 text-gray-300 font-mono' : 'bg-white/5 text-gray-200'} ${isApproval ? 'border-amber-500/30 bg-amber-500/5' : ''}`}>
         {showRaw && isDeveloperMode ? (
           <pre className="font-mono">{rawContent}</pre>
         ) : (
-          <div className="whitespace-pre-wrap">{formatContent(type, trace.data?.content)}</div>
+          <div className="whitespace-pre-wrap">{formatContent(type, isApproval ? trace.data : trace.data?.content)}</div>
+        )}
+        
+        {isApproval && (
+          <div className="mt-3 flex gap-2 border-t border-white/10 pt-3">
+            {!actioned ? (
+              <>
+                <button 
+                  onClick={async () => {
+                    setActioned('approve');
+                    await fetch('http://localhost:8000/api/agent/approve', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ task_id: taskId, tool_name: trace.data?.toolName, action: 'approve' })
+                    });
+                  }}
+                  className="bg-green-600 hover:bg-green-500 text-white px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1 transition-colors"
+                >
+                  <Check size={14} /> Approve Execution
+                </button>
+                <button 
+                  onClick={async () => {
+                    setActioned('reject');
+                    await fetch('http://localhost:8000/api/agent/approve', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ task_id: taskId, tool_name: trace.data?.toolName, action: 'reject' })
+                    });
+                  }}
+                  className="bg-red-600/80 hover:bg-red-600 text-white px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1 transition-colors"
+                >
+                  <X size={14} /> Reject
+                </button>
+              </>
+            ) : (
+              <span className={`text-xs font-semibold ${actioned === 'approve' ? 'text-green-400' : 'text-red-400'}`}>
+                {actioned === 'approve' ? '✅ Approved' : '🚫 Rejected'}
+              </span>
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -58,8 +100,8 @@ export default function DebuggerPanel({ taskId, logs, onClose, agents, isOverlay
   const [isDeveloperMode, setIsDeveloperMode] = useState(false);
 
   // Filter traces
-  const traces = logs.filter(l => l.status === 'TRACE_STEP');
-  const systemLogs = logs.filter(l => l.status !== 'TRACE_STEP');
+  const traces = logs.filter(l => l.status === 'TRACE_STEP' || l.status === 'TOOL_APPROVAL_REQUEST');
+  const systemLogs = logs.filter(l => l.status !== 'TRACE_STEP' && l.status !== 'TOOL_APPROVAL_REQUEST');
 
   const renderIcon = (type: string) => {
     switch (type) {
@@ -68,12 +110,17 @@ export default function DebuggerPanel({ taskId, logs, onClose, agents, isOverlay
       case 'TOOL_RESULT': return <Database size={16} className="text-purple-400" />;
       case 'MESSAGE': return <MessageSquare size={16} className="text-green-400" />;
       case 'ERROR': return <AlertTriangle size={16} className="text-red-400" />;
+      case 'APPROVAL': return <ShieldAlert size={16} className="text-amber-400 animate-pulse" />;
       default: return <Terminal size={16} className="text-gray-400" />;
     }
   };
 
   const formatContent = (type: string, content: any) => {
     if (!content) return "Processing...";
+    
+    if (type === 'APPROVAL') {
+      return `The agent wants to execute "${content.toolName}".\nArguments:\n${JSON.stringify(content.args, null, 2)}`;
+    }
     
     if (type === 'TOOL_CALL') {
       const calls = content.tool_calls || [];
@@ -185,6 +232,7 @@ export default function DebuggerPanel({ taskId, logs, onClose, agents, isOverlay
                       formatContent={formatContent}
                       agents={agents}
                       isDeveloperMode={isDeveloperMode}
+                      taskId={taskId}
                     />
                   ));
               })()}

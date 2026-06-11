@@ -44,7 +44,7 @@ async def async_run_agent(payload: dict, task_id: str):
         async with AsyncExitStack() as stack:
             # 1. Connect to any MCP tools requested by the agents
             publish_event(task_id, "PROCESSING", "Connecting to MCP Tools...")
-            mcp_tool_map = await load_mcp_tools_for_blueprint(blueprint, stack)
+            mcp_tool_map = await load_mcp_tools_for_blueprint(blueprint, stack, task_id=task_id)
             
             # 2. Build the workflow with the loaded tools
             workflow = build_agent_graph(blueprint, mcp_tool_map)

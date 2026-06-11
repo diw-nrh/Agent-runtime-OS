@@ -2,7 +2,8 @@
 
 import { useEffect, useState, use } from "react";
 import { useSettingsStore, CustomMcpTool } from "@/store/settingsStore";
-import { Plus, Trash2, Edit2, Wrench, Package, Link2, Unlink, Globe, Cpu } from "lucide-react";
+import { Plus, Trash2, Edit2, Wrench, Package, Link2, Unlink, Globe, Cpu, Activity, Loader2, CheckCircle2, XCircle, Shield, Hand, Ban, Check, Settings2 } from "lucide-react";
+import { Select } from "@/components/ui/Select";
 
 export default function ProjectToolsPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -25,6 +26,53 @@ export default function ProjectToolsPage({ params }: { params: Promise<{ id: str
   const [ctUrl, setCtUrl] = useState("");
   const [ctCommand, setCtCommand] = useState("");
   const [ctArgs, setCtArgs] = useState("");
+
+  // Permissions Modal State
+  const [showPermissionsModal, setShowPermissionsModal] = useState(false);
+  const [permissionsTool, setPermissionsTool] = useState<any>(null); // CustomMcpTool or LinkedMcpTool
+  const [permissionsLoading, setPermissionsLoading] = useState(false);
+  const [permissionsAvailableTools, setPermissionsAvailableTools] = useState<any[]>([]);
+  const [tempPermissions, setTempPermissions] = useState<{ global: string, tools: Record<string, string> }>({ global: 'allow', tools: {} });
+
+  const [testStatus, setTestStatus] = useState<Record<string, 'testing' | 'success' | 'error'>>({});
+  const [modalTestStatus, setModalTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+
+  const testMcpConnection = async (type: 'stdio'|'sse', url: string, command: string, args: string[], toolId?: string) => {
+    try {
+      if (toolId) {
+        setTestStatus(prev => ({ ...prev, [toolId]: 'testing' }));
+      } else {
+        setModalTestStatus('testing');
+      }
+      
+      const res = await fetch('http://localhost:8000/api/mcp/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, url: type === 'sse' ? url : undefined, command: type === 'stdio' ? command : undefined, args: type === 'stdio' ? args : undefined })
+      });
+      const data = await res.json();
+      
+      if (!res.ok) {
+        if (toolId) setTestStatus(prev => ({ ...prev, [toolId]: 'error' }));
+        else setModalTestStatus('error');
+        alert("Connection Failed: " + (data.detail || "Unknown error"));
+      } else {
+        if (toolId) {
+          setTestStatus(prev => ({ ...prev, [toolId]: 'success' }));
+          setTimeout(() => setTestStatus(prev => { const n = {...prev}; delete n[toolId]; return n; }), 3000);
+        } else {
+          setModalTestStatus('success');
+          setTimeout(() => setModalTestStatus('idle'), 3000);
+        }
+        const toolsStr = data.tools.map((t: any) => `- ${t.name}`).join('\n');
+        alert(`Success! Found ${data.tools.length} tools:\n${toolsStr}`);
+      }
+    } catch (err) {
+      if (toolId) setTestStatus(prev => ({ ...prev, [toolId]: 'error' }));
+      else setModalTestStatus('error');
+      alert("Failed to reach backend to test MCP connection.");
+    }
+  };
 
   useEffect(() => {
     const projSettings = getProjectSettings(projectId);
@@ -61,6 +109,7 @@ export default function ProjectToolsPage({ params }: { params: Promise<{ id: str
       setCtCommand("");
       setCtArgs("");
     }
+    setModalTestStatus('idle');
     setShowCustomToolModal(true);
   };
 
@@ -93,6 +142,59 @@ export default function ProjectToolsPage({ params }: { params: Promise<{ id: str
       deleteCustomTool(projectId, id);
       setCustomTools(getProjectSettings(projectId).customTools || []);
     }
+  };
+
+  const handleOpenPermissionsModal = async (tool: any) => {
+    setPermissionsTool(tool);
+    setTempPermissions({
+      global: tool.globalPermission || 'allow',
+      tools: tool.toolPermissions || {}
+    });
+    setShowPermissionsModal(true);
+    setPermissionsLoading(true);
+
+    try {
+      // For global linked tools, config might be inside tool.versions[0].config or similar
+      // but let's assume tool is CustomMcpTool for now
+      const url = tool.type === 'sse' ? tool.config?.url : undefined;
+      const command = tool.type === 'stdio' ? tool.config?.command : undefined;
+      const args = tool.type === 'stdio' ? tool.config?.args : undefined;
+
+      const res = await fetch('http://localhost:8000/api/mcp/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: tool.type, url, command, args })
+      });
+      const data = await res.json();
+      if (res.ok && data.tools) {
+        setPermissionsAvailableTools(data.tools);
+      } else {
+        setPermissionsAvailableTools([]);
+      }
+    } catch (e) {
+      setPermissionsAvailableTools([]);
+    } finally {
+      setPermissionsLoading(false);
+    }
+  };
+
+  const handleSavePermissions = () => {
+    if (!permissionsTool) return;
+    const updates = {
+      globalPermission: tempPermissions.global,
+      toolPermissions: tempPermissions.tools
+    };
+    
+    // Check if it's a custom tool or linked tool
+    const isCustom = customTools.some(t => t.id === permissionsTool.id);
+    if (isCustom) {
+      updateCustomTool(projectId, permissionsTool.id, { ...permissionsTool, ...updates });
+      setCustomTools(getProjectSettings(projectId).customTools || []);
+    } else {
+      updateLinkedTool(projectId, permissionsTool.id, updates);
+      setLinkedTools(getProjectSettings(projectId).linkedTools || []);
+    }
+    setShowPermissionsModal(false);
   };
 
   return (
@@ -133,7 +235,7 @@ export default function ProjectToolsPage({ params }: { params: Promise<{ id: str
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {customTools.map((tool) => (
-                <div key={tool.id} className="border rounded-xl p-5 flex flex-col bg-card shadow-sm hover:shadow transition-shadow">
+                <div key={tool.id} onDoubleClick={() => handleOpenPermissionsModal(tool)} className="border rounded-xl p-5 flex flex-col bg-card shadow-sm hover:shadow transition-shadow cursor-pointer">
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex items-center gap-2">
                       <div className="p-1.5 rounded-md bg-secondary text-secondary-foreground">
@@ -141,11 +243,29 @@ export default function ProjectToolsPage({ params }: { params: Promise<{ id: str
                       </div>
                       <h3 className="font-semibold">{tool.name}</h3>
                     </div>
-                    <div className="flex opacity-50 hover:opacity-100 transition-opacity">
-                      <button onClick={() => handleOpenCustomModal(tool)} className="p-1 text-muted-foreground hover:text-primary rounded-md">
+                    <div className="flex opacity-50 hover:opacity-100 transition-opacity gap-1">
+                      <button 
+                        onClick={() => testMcpConnection(tool.type, tool.config.url || "", tool.config.command || "", tool.config.args || [], tool.id)} 
+                        disabled={testStatus[tool.id] === 'testing'} 
+                        className={`p-1 rounded-md disabled:opacity-50 transition-colors ${
+                          testStatus[tool.id] === 'success' ? 'text-green-500 hover:text-green-600' :
+                          testStatus[tool.id] === 'error' ? 'text-red-500 hover:text-red-600' :
+                          'text-muted-foreground hover:text-blue-500'
+                        }`} 
+                        title="Test Connection"
+                      >
+                        {testStatus[tool.id] === 'testing' ? <Loader2 className="w-4 h-4 animate-spin" /> : 
+                         testStatus[tool.id] === 'success' ? <CheckCircle2 className="w-4 h-4" /> :
+                         testStatus[tool.id] === 'error' ? <XCircle className="w-4 h-4" /> :
+                         <Activity className="w-4 h-4" />}
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); handleOpenPermissionsModal(tool); }} className="p-1 text-muted-foreground hover:text-amber-500 rounded-md" title="Permissions">
+                        <Shield className="w-4 h-4" />
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); handleOpenCustomModal(tool); }} className="p-1 text-muted-foreground hover:text-primary rounded-md" title="Edit">
                         <Edit2 className="w-4 h-4" />
                       </button>
-                      <button onClick={() => handleDeleteCustomTool(tool.id)} className="p-1 text-muted-foreground hover:text-destructive rounded-md">
+                      <button onClick={(e) => { e.stopPropagation(); handleDeleteCustomTool(tool.id); }} className="p-1 text-muted-foreground hover:text-destructive rounded-md" title="Delete">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -184,8 +304,9 @@ export default function ProjectToolsPage({ params }: { params: Promise<{ id: str
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {availableTools.map((tool) => {
                 const isLinked = linkedTools.some(t => t.id === tool.id);
+                const linkedToolData = isLinked ? linkedTools.find(t => t.id === tool.id) : null;
                 return (
-                  <div key={tool.id} className={`border rounded-xl p-5 flex flex-col transition-all ${isLinked ? 'bg-primary/5 border-primary/20 shadow-sm' : 'bg-card opacity-80 hover:opacity-100'}`}>
+                  <div key={tool.id} onDoubleClick={() => isLinked && handleOpenPermissionsModal(linkedToolData)} className={`border rounded-xl p-5 flex flex-col transition-all ${isLinked ? 'bg-primary/5 border-primary/20 shadow-sm cursor-pointer' : 'bg-card opacity-80 hover:opacity-100'}`}>
                     <div className="flex justify-between items-start mb-2">
                       <div className="flex items-center gap-2">
                         <div className={`p-1.5 rounded-md ${isLinked ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
@@ -194,15 +315,21 @@ export default function ProjectToolsPage({ params }: { params: Promise<{ id: str
                         <h3 className="font-semibold">{tool.name}</h3>
                       </div>
                       {isLinked ? (
-                        <button 
-                          onClick={() => {
-                            unlinkTool(projectId, tool.id);
-                            setLinkedTools(prev => prev.filter(t => t.id !== tool.id));
-                          }}
-                          className="text-xs font-medium text-destructive bg-destructive/10 hover:bg-destructive/20 px-2 py-1 rounded-md flex items-center gap-1 transition-colors"
-                        >
-                          <Unlink size={12} /> Remove
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button onClick={(e) => { e.stopPropagation(); handleOpenPermissionsModal(linkedToolData); }} className="p-1 text-muted-foreground hover:text-amber-500 rounded-md transition-colors" title="Permissions">
+                            <Shield className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              unlinkTool(projectId, tool.id);
+                              setLinkedTools(prev => prev.filter(t => t.id !== tool.id));
+                            }}
+                            className="text-xs font-medium text-destructive bg-destructive/10 hover:bg-destructive/20 px-2 py-1 rounded-md flex items-center gap-1 transition-colors"
+                          >
+                            <Unlink size={12} /> Remove
+                          </button>
+                        </div>
                       ) : (
                         <button 
                           onClick={() => {
@@ -293,6 +420,22 @@ export default function ProjectToolsPage({ params }: { params: Promise<{ id: str
                 )}
 
                 <div className="flex justify-end gap-3 mt-8">
+                  <button 
+                    type="button" 
+                    onClick={() => testMcpConnection(ctType, ctUrl, ctCommand, ctArgs.split(' ').filter(Boolean))} 
+                    disabled={modalTestStatus === 'testing'} 
+                    className={`px-4 py-2 text-sm border rounded-md transition-colors flex items-center gap-2 mr-auto disabled:opacity-50 ${
+                      modalTestStatus === 'success' ? 'bg-green-500/10 text-green-500 hover:bg-green-500/20 border-green-500/20' :
+                      modalTestStatus === 'error' ? 'bg-red-500/10 text-red-500 hover:bg-red-500/20 border-red-500/20' :
+                      'hover:bg-blue-500/10 text-blue-500 hover:text-blue-600'
+                    }`}
+                  >
+                    {modalTestStatus === 'testing' ? <Loader2 className="w-4 h-4 animate-spin" /> : 
+                     modalTestStatus === 'success' ? <CheckCircle2 className="w-4 h-4" /> :
+                     modalTestStatus === 'error' ? <XCircle className="w-4 h-4" /> :
+                     <Activity className="w-4 h-4" />}
+                    {modalTestStatus === 'success' ? 'Connected!' : modalTestStatus === 'error' ? 'Failed' : 'Test Connection'}
+                  </button>
                   <button type="button" onClick={() => setShowCustomToolModal(false)} className="px-4 py-2 text-sm border rounded-md hover:bg-muted transition-colors">
                     Cancel
                   </button>
@@ -301,6 +444,122 @@ export default function ProjectToolsPage({ params }: { params: Promise<{ id: str
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Permissions Modal */}
+      {showPermissionsModal && permissionsTool && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-card w-full max-w-2xl rounded-xl shadow-lg border overflow-hidden flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b flex justify-between items-center bg-muted/10">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary/10 text-primary rounded-lg">
+                  <Shield size={20} />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold">{permissionsTool.name}</h2>
+                  <p className="text-sm text-muted-foreground">Tool permissions</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-6 overflow-y-auto flex-1">
+              <p className="text-sm text-muted-foreground mb-6">
+                Choose when the AI Agent is allowed to use these tools.
+              </p>
+              
+              <div className="flex items-center justify-between mb-6 pb-4 border-b">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold">All tools in this server</h3>
+                  <span className="text-xs bg-muted px-2 py-0.5 rounded-full">{permissionsAvailableTools.length}</span>
+                </div>
+                
+                <Select 
+                  value={tempPermissions.global}
+                  onChange={(val) => setTempPermissions(prev => ({ ...prev, global: val }))}
+                  options={[
+                    { value: 'allow', label: 'Always allow', icon: <CheckCircle2 className="text-green-500 w-4 h-4" /> },
+                    { value: 'ask', label: 'Needs approval', icon: <Hand className="text-amber-500 w-4 h-4" /> },
+                    { value: 'block', label: 'Blocked', icon: <Ban className="text-red-500 w-4 h-4" /> },
+                    { value: 'custom', label: 'Custom', icon: <Settings2 className="text-muted-foreground w-4 h-4" /> }
+                  ]}
+                  className="w-48"
+                />
+              </div>
+
+              {permissionsLoading ? (
+                <div className="py-10 flex flex-col items-center justify-center text-muted-foreground">
+                  <Loader2 className="w-8 h-8 animate-spin mb-4" />
+                  <p>Loading tools...</p>
+                </div>
+              ) : permissionsAvailableTools.length === 0 ? (
+                <div className="py-10 text-center text-muted-foreground border border-dashed rounded-lg">
+                  <Ban className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                  <p>No sub-tools found or failed to connect to the server.</p>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {permissionsAvailableTools.map(t => {
+                    // if global is custom, use tool specific or default to ask
+                    // if global is not custom, we ignore tool specific visually, but we can let them override it?
+                    // Actually let's make it so if they click a tool toggle, global becomes "custom".
+                    const effectivePerm = tempPermissions.global === 'custom' 
+                      ? (tempPermissions.tools[t.name] || 'ask') 
+                      : tempPermissions.global;
+                      
+                    const handleToolPermChange = (perm: string) => {
+                      setTempPermissions(prev => ({
+                        global: 'custom',
+                        tools: { ...prev.tools, [t.name]: perm }
+                      }));
+                    };
+
+                    return (
+                      <div key={t.name} className="flex items-center justify-between py-3 px-4 hover:bg-muted/30 rounded-lg transition-colors group">
+                        <div className="flex flex-col">
+                          <span className="font-medium text-sm">{t.name}</span>
+                          {t.description && <span className="text-xs text-muted-foreground line-clamp-1 max-w-sm">{t.description}</span>}
+                        </div>
+                        
+                        <div className="flex bg-muted rounded-lg p-1 border">
+                          <button 
+                            onClick={() => handleToolPermChange('allow')}
+                            className={`p-1.5 rounded-md transition-all ${effectivePerm === 'allow' ? 'bg-background shadow-sm text-green-600 dark:text-green-400' : 'text-muted-foreground hover:text-foreground opacity-50'}`}
+                            title="Always allow"
+                          >
+                            <Check className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => handleToolPermChange('ask')}
+                            className={`p-1.5 rounded-md transition-all ${effectivePerm === 'ask' ? 'bg-background shadow-sm text-amber-600 dark:text-amber-400' : 'text-muted-foreground hover:text-foreground opacity-50'}`}
+                            title="Needs approval"
+                          >
+                            <Hand className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => handleToolPermChange('block')}
+                            className={`p-1.5 rounded-md transition-all ${effectivePerm === 'block' ? 'bg-background shadow-sm text-red-600 dark:text-red-400' : 'text-muted-foreground hover:text-foreground opacity-50'}`}
+                            title="Blocked"
+                          >
+                            <Ban className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            
+            <div className="p-4 border-t bg-muted/10 flex justify-end gap-3 mt-auto">
+              <button onClick={() => setShowPermissionsModal(false)} className="px-5 py-2 text-sm border rounded-lg hover:bg-muted transition-colors font-medium">
+                Cancel
+              </button>
+              <button onClick={handleSavePermissions} className="px-5 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium">
+                Save Permissions
+              </button>
             </div>
           </div>
         </div>

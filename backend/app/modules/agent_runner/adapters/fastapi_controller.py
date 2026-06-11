@@ -4,6 +4,8 @@ import redis
 import os
 from fastapi import APIRouter, HTTPException, Request
 from sse_starlette.sse import EventSourceResponse
+from pydantic import BaseModel
+from typing import Literal
 from app.modules.agent_runner.domain.models import AgentBlueprint
 from app.modules.agent_runner.tasks import run_agent_pipeline
 
@@ -173,5 +175,19 @@ async def chat_with_agent(chat_request: ChatRequest, request: Request):
             "task_id": task.id,
             "status": "Processing"
         }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+class ApprovalRequest(BaseModel):
+    task_id: str
+    tool_name: str
+    action: Literal["approve", "reject"]
+
+@router.post("/approve")
+async def approve_tool(req: ApprovalRequest):
+    try:
+        channel = f"agent_approval_{req.task_id}_{req.tool_name}"
+        redis_client.publish(channel, json.dumps({"action": req.action}))
+        return {"status": "success", "message": f"Tool {req.tool_name} {req.action}d"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

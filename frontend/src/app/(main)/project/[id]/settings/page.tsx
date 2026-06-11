@@ -2,7 +2,8 @@
 
 import { useEffect, useState, use } from "react";
 import { useSettingsStore, AIConnection, AIProviderType, CustomMcpTool, ExecutionSettings } from "@/store/settingsStore";
-import { Server, Plus, Trash2, Edit2, ShieldCheck, Cpu, Package, Link2, Unlink, Wrench, Globe, AlertTriangle, Settings2, Save } from "lucide-react";
+import { Server, Plus, Trash2, Edit2, ShieldCheck, Cpu, Package, Link2, Unlink, Wrench, Globe, AlertTriangle, Settings2, Save, Activity, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Select } from "@/components/ui/Select";
 
 export default function ProjectSettingsPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -63,6 +64,46 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
   const [ctCommand, setCtCommand] = useState("");
   const [ctArgs, setCtArgs] = useState("");
 
+  const [testStatus, setTestStatus] = useState<Record<string, 'testing' | 'success' | 'error'>>({});
+  const [modalTestStatus, setModalTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+
+  const testMcpConnection = async (type: 'stdio'|'sse', url: string, command: string, args: string[], toolId?: string) => {
+    try {
+      if (toolId) {
+        setTestStatus(prev => ({ ...prev, [toolId]: 'testing' }));
+      } else {
+        setModalTestStatus('testing');
+      }
+      
+      const res = await fetch('http://localhost:8000/api/mcp/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, url: type === 'sse' ? url : undefined, command: type === 'stdio' ? command : undefined, args: type === 'stdio' ? args : undefined })
+      });
+      const data = await res.json();
+      
+      if (!res.ok) {
+        if (toolId) setTestStatus(prev => ({ ...prev, [toolId]: 'error' }));
+        else setModalTestStatus('error');
+        alert("Connection Failed: " + (data.detail || "Unknown error"));
+      } else {
+        if (toolId) {
+          setTestStatus(prev => ({ ...prev, [toolId]: 'success' }));
+          setTimeout(() => setTestStatus(prev => { const n = {...prev}; delete n[toolId]; return n; }), 3000);
+        } else {
+          setModalTestStatus('success');
+          setTimeout(() => setModalTestStatus('idle'), 3000);
+        }
+        const toolsStr = data.tools.map((t: any) => `- ${t.name}`).join('\n');
+        alert(`Success! Found ${data.tools.length} tools:\n${toolsStr}`);
+      }
+    } catch (err) {
+      if (toolId) setTestStatus(prev => ({ ...prev, [toolId]: 'error' }));
+      else setModalTestStatus('error');
+      alert("Failed to reach backend to test MCP connection.");
+    }
+  };
+
   const handleOpenCustomModal = (tool?: CustomMcpTool) => {
     if (tool) {
       setEditingCustomToolId(tool.id);
@@ -81,6 +122,7 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
       setCtCommand("");
       setCtArgs("");
     }
+    setModalTestStatus('idle');
     setShowCustomToolModal(true);
   };
 
@@ -197,6 +239,13 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
             {activeTab === 'connections' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-t-md" />}
           </button>
           <button 
+            className={`px-4 py-3 font-medium text-sm transition-colors relative flex items-center gap-2 ${activeTab === 'tools' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+            onClick={() => setActiveTab('tools')}
+          >
+            <Package size={16} /> MCP Tools
+            {activeTab === 'tools' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-t-md" />}
+          </button>
+          <button 
             className={`px-4 py-3 font-medium text-sm transition-colors relative flex items-center gap-2 ${activeTab === 'limits' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
             onClick={() => setActiveTab('limits')}
           >
@@ -225,7 +274,7 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
           </div>
 
           {connections.length === 0 ? (
-            <div className="text-center py-16 border-2 border-dashed rounded-xl text-muted-foreground bg-muted/10">
+            <div className="text-center py-16 border-2 border-dashed border-white/10 rounded-xl text-muted-foreground glass-panel">
               <Cpu className="w-12 h-12 mx-auto mb-4 opacity-20" />
               <h3 className="text-lg font-medium text-foreground">No Connections Yet</h3>
               <p className="mb-6">Add your first AI connection to start running agents.</p>
@@ -239,7 +288,7 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {connections.map((conn) => (
-                <div key={conn.id} className="bg-card border rounded-xl shadow-sm overflow-hidden flex flex-col group">
+                <div key={conn.id} className="glass-card rounded-xl overflow-hidden flex flex-col group glass-hover">
                   <div className="p-5 flex-1">
                     <div className="flex justify-between items-start mb-4">
                       <div className={`p-2 rounded-lg ${
@@ -264,6 +313,94 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
                   <div className="bg-muted/30 border-t px-5 py-3 text-xs text-muted-foreground flex items-center gap-2">
                     <ShieldCheck className="w-3.5 h-3.5" />
                     {(conn.provider === 'openai-compatible' || conn.provider === 'local') && conn.baseUrl ? conn.baseUrl : 'API Key Securely Stored'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'tools' && (
+        <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4 mb-8">
+            <div className="max-w-2xl">
+              <h2 className="text-2xl font-bold tracking-tight">MCP Tools</h2>
+              <p className="text-muted-foreground mt-2 leading-relaxed">
+                Add Model Context Protocol (MCP) servers to give your agents custom capabilities.
+              </p>
+            </div>
+            <button 
+              onClick={() => handleOpenCustomModal()}
+              className="flex items-center justify-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-md font-medium hover:bg-primary/90 transition-all shadow-sm shrink-0 whitespace-nowrap mt-1"
+            >
+              <Plus className="w-4 h-4" />
+              Add Local MCP Tool
+            </button>
+          </div>
+
+          {customTools.length === 0 ? (
+            <div className="text-center py-16 border-2 border-dashed border-white/10 rounded-xl text-muted-foreground glass-panel">
+              <Package className="w-12 h-12 mx-auto mb-4 opacity-20" />
+              <h3 className="text-lg font-medium text-foreground">No Custom Tools Yet</h3>
+              <p className="mb-6">Connect your first local MCP server to expand your agent's capabilities.</p>
+              <button 
+                onClick={() => handleOpenCustomModal()}
+                className="bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm hover:bg-primary/90"
+              >
+                Add Local MCP Tool
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
+              {customTools.map((tool) => (
+                <div key={tool.id} className="glass-card rounded-xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 group glass-hover">
+                  <div className="flex items-start gap-4">
+                    <div className="p-3 bg-muted rounded-lg shrink-0">
+                      <Wrench className="w-6 h-6 text-foreground" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-lg">{tool.name}</h3>
+                      {tool.description && <p className="text-sm text-muted-foreground mt-1">{tool.description}</p>}
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="text-xs px-2 py-0.5 rounded-md bg-muted font-mono border">
+                          {tool.type.toUpperCase()}
+                        </span>
+                        {tool.type === 'stdio' && tool.config.command && (
+                          <span className="text-xs text-muted-foreground font-mono truncate max-w-sm">
+                            {tool.config.command} {tool.config.args?.join(' ')}
+                          </span>
+                        )}
+                        {tool.type === 'sse' && tool.config.url && (
+                          <span className="text-xs text-muted-foreground font-mono truncate max-w-sm">
+                            {tool.config.url}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 md:opacity-0 group-hover:opacity-100 transition-opacity self-end md:self-center">
+                    <button 
+                      onClick={() => testMcpConnection(tool.type, tool.config.url || "", tool.config.command || "", tool.config.args || [], tool.id)} 
+                      disabled={testStatus[tool.id] === 'testing'} 
+                      className={`p-2 rounded-md transition-colors border disabled:opacity-50 ${
+                        testStatus[tool.id] === 'success' ? 'bg-green-500/10 text-green-500 hover:bg-green-500/20 border-green-500/20' :
+                        testStatus[tool.id] === 'error' ? 'bg-red-500/10 text-red-500 hover:bg-red-500/20 border-red-500/20' :
+                        'bg-muted text-muted-foreground hover:bg-blue-500/10 hover:text-blue-500'
+                      }`} 
+                      title="Test Connection"
+                    >
+                      {testStatus[tool.id] === 'testing' ? <Loader2 className="w-4 h-4 animate-spin" /> : 
+                       testStatus[tool.id] === 'success' ? <CheckCircle2 className="w-4 h-4" /> :
+                       testStatus[tool.id] === 'error' ? <XCircle className="w-4 h-4" /> :
+                       <Activity className="w-4 h-4" />}
+                    </button>
+                    <button onClick={() => handleOpenCustomModal(tool)} className="p-2 bg-muted hover:bg-primary/10 text-muted-foreground hover:text-primary rounded-md transition-colors border">
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => handleDeleteCustomTool(tool.id)} className="p-2 bg-muted hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded-md transition-colors border">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
               ))}
@@ -299,7 +436,7 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
           </div>
 
           <div className="space-y-6">
-            <div className="bg-card border rounded-xl p-6 shadow-sm">
+            <div className="glass-panel rounded-xl p-6 shadow-sm">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
                   <div className={`p-2 rounded-lg transition-colors ${executionSettings.enableGlobalLimits ? 'bg-blue-100 text-blue-700' : 'bg-muted text-muted-foreground'}`}>
@@ -393,7 +530,125 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
         </div>
       )}
 
-      {/* Modal */}
+      {/* Modals */}
+      {showCustomToolModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-card w-full max-w-lg rounded-xl shadow-lg border overflow-hidden my-auto" onClick={e => e.stopPropagation()}>
+            <div className="p-6">
+              <h2 className="text-xl font-bold mb-4">{editingCustomToolId ? "Edit MCP Tool" : "Add Local MCP Tool"}</h2>
+              
+              <form onSubmit={handleSaveCustomTool} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Tool Name</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={ctName}
+                    onChange={(e) => setCtName(e.target.value)}
+                    placeholder="e.g. Local Stock Analyzer"
+                    className="w-full px-3 py-2 border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Description (Optional)</label>
+                  <input 
+                    type="text" 
+                    value={ctDesc}
+                    onChange={(e) => setCtDesc(e.target.value)}
+                    placeholder="Briefly describe what this server does"
+                    className="w-full px-3 py-2 border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Transport Type</label>
+                  <Select 
+                    value={ctType}
+                    onChange={(val) => setCtType(val as 'stdio' | 'sse')}
+                    options={[
+                      { value: "stdio", label: "Stdio (Command Line)" },
+                      { value: "sse", label: "SSE (HTTP URL)" }
+                    ]}
+                  />
+                </div>
+
+                {ctType === 'stdio' ? (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Command</label>
+                      <input 
+                        type="text" 
+                        required
+                        value={ctCommand}
+                        onChange={(e) => setCtCommand(e.target.value)}
+                        placeholder="e.g. npx or python"
+                        className="w-full px-3 py-2 border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 font-mono text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Arguments (Space separated)</label>
+                      <input 
+                        type="text" 
+                        value={ctArgs}
+                        onChange={(e) => setCtArgs(e.target.value)}
+                        placeholder="e.g. -y @modelcontextprotocol/server-postgres"
+                        className="w-full px-3 py-2 border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 font-mono text-sm"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">If your paths contain spaces, ensure they are properly escaped.</p>
+                    </div>
+                  </>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium mb-1">SSE URL</label>
+                    <input 
+                      type="url" 
+                      required
+                      value={ctUrl}
+                      onChange={(e) => setCtUrl(e.target.value)}
+                      placeholder="http://localhost:3000/sse"
+                      className="w-full px-3 py-2 border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 font-mono text-sm"
+                    />
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-3 mt-8">
+                  <button
+                    type="button"
+                    onClick={() => testMcpConnection(ctType, ctUrl, ctCommand, ctArgs.split(' ').filter(Boolean))}
+                    disabled={modalTestStatus === 'testing'}
+                    className={`px-4 py-2 text-sm border rounded-md transition-colors flex items-center gap-2 mr-auto disabled:opacity-50 ${
+                      modalTestStatus === 'success' ? 'bg-green-500/10 text-green-500 hover:bg-green-500/20 border-green-500/20' :
+                      modalTestStatus === 'error' ? 'bg-red-500/10 text-red-500 hover:bg-red-500/20 border-red-500/20' :
+                      'hover:bg-blue-500/10 text-blue-500 hover:text-blue-600'
+                    }`}
+                  >
+                    {modalTestStatus === 'testing' ? <Loader2 className="w-4 h-4 animate-spin" /> : 
+                     modalTestStatus === 'success' ? <CheckCircle2 className="w-4 h-4" /> :
+                     modalTestStatus === 'error' ? <XCircle className="w-4 h-4" /> :
+                     <Activity className="w-4 h-4" />}
+                    {modalTestStatus === 'success' ? 'Connected!' : modalTestStatus === 'error' ? 'Failed' : 'Test Connection'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowCustomToolModal(false)}
+                    className="px-4 py-2 text-sm border rounded-md hover:bg-muted transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+                  >
+                    Save MCP Tool
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-card w-full max-w-md rounded-xl shadow-lg border overflow-hidden" onClick={e => e.stopPropagation()}>
@@ -415,25 +670,25 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
 
                 <div>
                   <label className="block text-sm font-medium mb-1">Provider Type</label>
-                  <select 
+                  <Select 
                     value={provider}
-                    onChange={(e) => {
-                      const val = e.target.value as AIProviderType;
-                      setProvider(val);
-                      if (val === 'local') {
+                    onChange={(val) => {
+                      const newProvider = val as AIProviderType;
+                      setProvider(newProvider);
+                      if (newProvider === 'local') {
                         if (!baseUrl || baseUrl === 'https://api.openai.com/v1') setBaseUrl('http://localhost:1234/v1');
                         if (!apiKey) setApiKey('local');
-                      } else if (val === 'openai-compatible') {
+                      } else if (newProvider === 'openai-compatible') {
                         if (baseUrl === 'http://localhost:1234/v1') setBaseUrl('https://api.openai.com/v1');
                       }
                     }}
-                    className="w-full px-3 py-2 border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
-                  >
-                    <option value="openai-compatible">Universal (OpenAI-Compatible)</option>
-                    <option value="local">Local (LM Studio, Ollama, vLLM)</option>
-                    <option value="anthropic">Anthropic</option>
-                    <option value="google">Google Gemini</option>
-                  </select>
+                    options={[
+                      { value: "openai-compatible", label: "Universal (OpenAI-Compatible)" },
+                      { value: "local", label: "Local (LM Studio, Ollama, vLLM)" },
+                      { value: "anthropic", label: "Anthropic" },
+                      { value: "google", label: "Google Gemini" }
+                    ]}
+                  />
                 </div>
 
                 {(provider === 'openai-compatible' || provider === 'local') && (

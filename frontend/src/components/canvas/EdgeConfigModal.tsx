@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Node } from '@xyflow/react';
 import { X, Network, Trash2 } from 'lucide-react';
+import { Select } from '@/components/ui/Select';
 
 interface EdgeConfigModalProps {
   isOpen: boolean;
@@ -68,18 +69,15 @@ export default function EdgeConfigModal({
                 From: {sourceNode?.data?.label || 'Unknown Agent'}
               </label>
               <label className="text-sm font-medium block mb-1.5">Connect to Agent</label>
-              <select
-                className="w-full p-2 border rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+              <Select
                 value={targetId}
-                onChange={(e) => setTargetId(e.target.value)}
-              >
-                <option value="" disabled>Select Target Agent...</option>
-                {availableTargets.map(n => (
-                  <option key={n.id} value={n.id}>
-                    {n.data.label as string || 'Unnamed Agent'}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => setTargetId(val)}
+                placeholder="Select Target Agent..."
+                options={availableTargets.map(n => ({
+                  value: n.id,
+                  label: n.data.label as string || 'Unnamed Agent'
+                }))}
+              />
             </div>
           )}
 
