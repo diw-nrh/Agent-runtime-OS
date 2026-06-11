@@ -75,6 +75,23 @@ class DeterministicToolWrapper(Runnable):
         messages = inputs.get("messages", []) if isinstance(inputs, dict) else inputs
         
         if messages:
+            try:
+                from langchain_core.messages import trim_messages
+                messages = trim_messages(
+                    messages,
+                    max_tokens=10, # Keep the last 10 messages
+                    strategy="last",
+                    token_counter=len,
+                    include_system=True,
+                    allow_partial=False
+                )
+                if isinstance(inputs, dict):
+                    inputs = {**inputs, "messages": messages}
+                else:
+                    inputs = messages
+            except Exception:
+                pass
+            
             for msg in messages:
                 msg_type = msg.get("type", "") if isinstance(msg, dict) else getattr(msg, "type", "")
                 msg_class = "" if isinstance(msg, dict) else msg.__class__.__name__
