@@ -1,6 +1,6 @@
 import React from 'react';
 import { NodeViewWrapper, NodeViewProps } from '@tiptap/react';
-import { Bot } from 'lucide-react';
+import { Bot, MessageSquare } from 'lucide-react';
 
 export function AgentDelegateComponent({ node }: NodeViewProps) {
   const { agentId, agentName, agentDesc } = node.attrs;
@@ -21,7 +21,11 @@ export function AgentDelegateComponent({ node }: NodeViewProps) {
         onDoubleClick={handleDoubleClick}
         title="Double click to view details"
       >
-        <Bot className="w-3.5 h-3.5" />
+        {agentId?.startsWith('io_node') ? (
+          <MessageSquare className="w-3.5 h-3.5" />
+        ) : (
+          <Bot className="w-3.5 h-3.5" />
+        )}
         {agentName || 'Unknown Agent'}
       </span>
     </NodeViewWrapper>

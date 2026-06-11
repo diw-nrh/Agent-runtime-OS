@@ -18,7 +18,8 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { AgentNode } from './AgentNode';
-import { Play, Loader2, X } from 'lucide-react';
+import { IONode } from './IONode';
+import { Play, Loader2, X, AlertCircle } from 'lucide-react';
 import { useDeployBlueprint } from '../../hooks/useDeployBlueprint';
 import DebuggerPanel from './DebuggerPanel';
 import { useRouter, usePathname } from 'next/navigation';
@@ -27,6 +28,7 @@ import EdgeConfigModal from './EdgeConfigModal';
 
 const nodeTypes = {
   agent: AgentNode,
+  io_node: IONode,
 };
 
 const edgeTypes = {
@@ -114,6 +116,32 @@ export function CanvasEditor({
 
   const onConnect = useCallback(
     (params: Connection | Edge) => {
+      const sourceNode = nodes.find(n => n.id === params.source);
+      const targetNode = nodes.find(n => n.id === params.target);
+      
+      // IONode Validation Rules
+      if (sourceNode?.type === 'io_node') {
+        if (params.sourceHandle !== 'input') {
+          alert('IO Node can only start connections from its Input port.');
+          return;
+        }
+        if (targetNode?.type !== 'agent') {
+          alert('Input port must connect to an Agent.');
+          return;
+        }
+      }
+
+      if (targetNode?.type === 'io_node') {
+        if (params.targetHandle !== 'output' && params.targetHandle !== 'end') {
+          alert('IO Node can only receive connections on Output or End ports.');
+          return;
+        }
+        if (sourceNode?.type !== 'agent') {
+          alert(`${params.targetHandle === 'output' ? 'Output' : 'End Program'} port can only receive connections from an Agent.`);
+          return;
+        }
+      }
+
       const newEdgeId = 'id' in params ? params.id : `edge-${Date.now()}`;
       setEdges((eds) => addEdge({ 
         ...params, 
@@ -124,7 +152,7 @@ export function CanvasEditor({
         style: { strokeDasharray: '5,5' }
       }, eds));
     },
-    [setEdges]
+    [setEdges, nodes]
   );
 
   const onDragOver = useCallback((event: React.DragEvent) => {
@@ -160,6 +188,7 @@ export function CanvasEditor({
           position,
           data: type === 'agent' 
             ? { label: getUniqueAgentName(nds), model: 'openai/gpt-4o-mini', system_prompt: 'You are a helpful assistant.' }
+            : type === 'io_node' ? { label: 'System IO' } 
             : { content: '' },
         };
         return nds.concat(newNode);

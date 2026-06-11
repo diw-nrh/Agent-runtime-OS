@@ -16,13 +16,15 @@ class AgentConfig(BaseModel):
 
 class NodeConfig(BaseModel):
     id: str
-    type: Literal["agent", "condition", "tool"]
+    type: Literal["agent", "condition", "tool", "io_node"]
     data: Dict[str, Any]
 
 class EdgeConfig(BaseModel):
     id: str
     source: str
     target: str
+    sourceHandle: Optional[str] = None
+    targetHandle: Optional[str] = None
     mode: Literal["sequential", "delegate"] = "delegate"
     data: Optional[Dict[str, Any]] = Field(default_factory=dict)
 

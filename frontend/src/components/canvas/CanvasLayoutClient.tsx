@@ -1,7 +1,7 @@
 "use client";
 
 import { CanvasEditor } from "@/components/canvas/CanvasEditor";
-import { Bot, Plus } from "lucide-react";
+import { Bot, Plus, MessageSquare } from "lucide-react";
 import { ReactFlowProvider } from "@xyflow/react";
 import type { Node, Edge } from '@xyflow/react';
 
@@ -90,14 +90,18 @@ export function CanvasLayoutClient({ blueprintId, projectName = "Untitled Projec
             </div>
           </div>
           
-          {/* Condition Node (Placeholder) */}
-          <div className="border border-dashed rounded-lg p-3 bg-muted/30 flex items-center gap-3 cursor-not-allowed opacity-50">
-            <div className="bg-muted text-muted-foreground p-2 rounded-md">
-              <Plus size={20} />
+          {/* Draggable IO Node */}
+          <div 
+            className="border rounded-lg p-3 bg-background flex items-center gap-3 cursor-grab hover:border-blue-500/50 hover:shadow-sm transition-all active:cursor-grabbing"
+            onDragStart={(event) => onDragStart(event, 'io_node')}
+            draggable
+          >
+            <div className="bg-blue-500/10 text-blue-500 p-2 rounded-md">
+              <MessageSquare size={20} />
             </div>
             <div className="flex-1">
-              <div className="text-sm font-semibold">Condition</div>
-              <div className="text-xs text-muted-foreground">Coming soon</div>
+              <div className="text-sm font-semibold">System IO</div>
+              <div className="text-xs text-muted-foreground">Input, Output, End points</div>
             </div>
           </div>
         </div>

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { NotebookEditor } from "@/components/notebook/Editor";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useDeployBlueprint } from "@/hooks/useDeployBlueprint";
-import { AlertCircle, Wrench, Bot, Link as LinkIcon, Settings2, ChevronDown, ChevronUp, Network, Plus, Settings, Database, Trash2, FileCode2, Maximize2, Minimize2, ExternalLink } from "lucide-react";
+import { AlertCircle, Wrench, Bot, Link as LinkIcon, Settings2, ChevronDown, ChevronUp, Network, Plus, Settings, Database, Trash2, FileCode2, Maximize2, Minimize2, ExternalLink, MessageSquare } from "lucide-react";
 import { Node, Edge } from "@xyflow/react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -322,7 +322,7 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
                     value={newConnTarget}
                     onChange={(val) => setNewConnTarget(val)}
                     placeholder="Select Target..."
-                    options={allNodes.filter(n => n.id !== selectedAgentId && n.type === 'agent').map(n => ({ value: n.id, label: n.data.label as string || "Unnamed Agent" }))}
+                    options={allNodes.filter(n => n.id !== selectedAgentId && (n.type === 'agent' || n.type === 'io_node')).map(n => ({ value: n.id, label: (n.data.label as string) || (n.type === 'io_node' ? 'System IO' : 'Unnamed Agent') }))}
                   />
                 </div>
                 <div className="w-1/3">
@@ -423,7 +423,7 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
                           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                         >
                           <option value="" disabled className="bg-[#1e1e1e]">Select Target...</option>
-                          {allNodes.filter(n => n.id !== selectedAgentId && n.type === 'agent').map(n => (
+                          {allNodes.filter(n => n.id !== selectedAgentId && (n.type === 'agent' || n.type === 'io_node')).map(n => (
                             <option key={n.id} value={n.id} className="bg-[#1e1e1e]">{n.data.label as string}</option>
                           ))}
                         </select>
@@ -453,8 +453,8 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
                               type: 'agentDelegate',
                               attrs: {
                                 agentId: targetNode.id,
-                                agentName: targetNode.data.label,
-                                agentDesc: targetNode.data.system_prompt
+                                agentName: targetNode.data.label || 'System IO',
+                                agentDesc: targetNode.data.system_prompt || (targetNode.type === 'io_node' ? 'End or Output routing node.' : 'No description')
                               }
                             }).insertContent(' ').run();
                           } else if (!editorRef.current) {
@@ -464,7 +464,7 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
                         className="text-xs bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 border border-blue-500/30 px-2.5 py-1.5 rounded-md transition-colors opacity-0 group-hover/edge:opacity-100 flex items-center gap-1.5"
                         title="Insert into System Prompt"
                       >
-                        <Bot size={12} /> Insert to Prompt
+                        {targetNode?.type === 'io_node' ? <MessageSquare size={12} /> : <Bot size={12} />} Insert to Prompt
                       </button>
                     )}
                     <button 

@@ -51,7 +51,25 @@ def build_agent_graph(blueprint: AgentBlueprint, mcp_tool_map: dict = None):
     delegate_edges = {a.id: [] for a in blueprint.agents}
     sequential_edges = {a.id: [] for a in blueprint.agents}
     
+    io_node_ids = {n.id for n in blueprint.nodes if n.type == "io_node"}
+    end_agents = set()
+    output_agents = set()
+    start_agents = set()
+    
     for edge in blueprint.edges:
+        # Handle IO Node specific edges
+        if edge.target in io_node_ids:
+            if getattr(edge, 'targetHandle', None) == "end":
+                end_agents.add(edge.source)
+            elif getattr(edge, 'targetHandle', None) == "output":
+                output_agents.add(edge.source)
+            continue
+            
+        if edge.source in io_node_ids:
+            if getattr(edge, 'sourceHandle', None) == "input":
+                start_agents.add(edge.target)
+            continue
+
         mode = edge.data.get("mode", edge.mode) if edge.data else edge.mode
         if mode == "delegate":
             if edge.source in delegate_edges:
@@ -226,6 +244,10 @@ def build_agent_graph(blueprint: AgentBlueprint, mcp_tool_map: dict = None):
     # If they want to delegate, they will call a handoff tool which returns a Command(goto=...) to intercept.
     # Otherwise, they follow sequential edges or go to END.
     for agent in blueprint.agents:
+        if agent.id in end_agents:
+            workflow.add_edge(agent.id, END)
+            continue
+            
         seq_targets = sequential_edges.get(agent.id, [])
         if not seq_targets:
             workflow.add_edge(agent.id, END)
@@ -234,8 +256,11 @@ def build_agent_graph(blueprint: AgentBlueprint, mcp_tool_map: dict = None):
                 workflow.add_edge(agent.id, target)
 
     # 3. Find the Entry Point (Nodes with no incoming edges)
-    target_ids = {e.target for e in blueprint.edges}
-    start_nodes = [a.id for a in blueprint.agents if a.id not in target_ids]
+    if start_agents:
+        start_nodes = list(start_agents)
+    else:
+        target_ids = {e.target for e in blueprint.edges if e.target not in io_node_ids}
+        start_nodes = [a.id for a in blueprint.agents if a.id not in target_ids]
     
     if not start_nodes:
         # Fallback to the first agent if circular or missing
