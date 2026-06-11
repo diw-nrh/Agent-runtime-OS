@@ -33,6 +33,7 @@ export function AgentNode({ id, data, selected }: AgentNodeProps & { selected?: 
   const [enableCustomLimits, setEnableCustomLimits] = useState(!!data.enableCustomLimits);
   const [maxTokens, setMaxTokens] = useState(data.maxTokens || 100000);
   const [maxIterations, setMaxIterations] = useState(data.maxIterations || 25);
+  const [maxToolCalls, setMaxToolCalls] = useState(data.maxToolCalls ?? 1);
 
   // Sync local state if data changes from outside (e.g. loading a new blueprint)
   useEffect(() => { setLocalLabel(data.label || ''); }, [data.label]);
@@ -62,7 +63,7 @@ export function AgentNode({ id, data, selected }: AgentNodeProps & { selected?: 
   const handleCustomLimitsToggle = (e: React.ChangeEvent<HTMLInputElement>) => {
     const checked = e.target.checked;
     setEnableCustomLimits(checked);
-    updateNodeData(id, { ...data, enableCustomLimits: checked, maxTokens, maxIterations });
+    updateNodeData(id, { ...data, enableCustomLimits: checked, maxTokens, maxIterations, maxToolCalls });
   };
 
   const handleTokensBlur = () => {
@@ -71,6 +72,10 @@ export function AgentNode({ id, data, selected }: AgentNodeProps & { selected?: 
 
   const handleIterationsBlur = () => {
     updateNodeData(id, { ...data, maxIterations });
+  };
+
+  const handleToolCallsBlur = () => {
+    updateNodeData(id, { ...data, maxToolCalls });
   };
 
   const handleConnectionChange = (connId: string) => {
@@ -292,6 +297,37 @@ export function AgentNode({ id, data, selected }: AgentNodeProps & { selected?: 
                     onChange={(e) => setMaxIterations(parseInt(e.target.value) || 0)}
                     onBlur={handleIterationsBlur}
                     min={1}
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="text-[10px] text-muted-foreground">Max Tool Calls</div>
+                    <label className="flex items-center gap-1 cursor-pointer">
+                      <span className="text-[10px] text-muted-foreground">Infinite</span>
+                      <div className="relative inline-flex items-center">
+                        <input 
+                          type="checkbox" 
+                          className="sr-only peer"
+                          checked={maxToolCalls === -1}
+                          onChange={(e) => {
+                            const val = e.target.checked ? -1 : 1;
+                            setMaxToolCalls(val);
+                            updateNodeData(id, { ...data, maxToolCalls: val });
+                          }}
+                        />
+                        <div className="w-5 h-3 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1px] after:left-[1px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-2.5 after:w-2.5 after:transition-all peer-checked:bg-emerald-500"></div>
+                      </div>
+                    </label>
+                  </div>
+                  <input
+                    type="number"
+                    className="w-full text-xs p-1.5 bg-background border rounded-md outline-none focus:border-primary/50 nodrag disabled:opacity-50"
+                    value={maxToolCalls === -1 ? '' : (Number(maxToolCalls) || 1)}
+                    onChange={(e) => setMaxToolCalls(parseInt(e.target.value) || 1)}
+                    onBlur={handleToolCallsBlur}
+                    min={1}
+                    disabled={maxToolCalls === -1}
+                    placeholder={maxToolCalls === -1 ? "Unlimited" : "Enter max tool calls"}
                   />
                 </div>
               </div>

@@ -109,8 +109,11 @@ export function useDeployBlueprint() {
               return { id: toolId, isGlobal: true };
             }),
             enableCustomLimits: !!n.data.enableCustomLimits,
-            maxTokens: n.data.maxTokens || 100000,
-            maxIterations: n.data.maxIterations || 25,
+            maxTokens: n.data.enableCustomLimits ? (n.data.maxTokens || 100000) : 100000,
+            maxIterations: n.data.enableCustomLimits ? (n.data.maxIterations || 25) : 25,
+            maxToolCalls: n.data.enableCustomLimits 
+              ? (n.data.maxToolCalls ?? settings.executionSettings?.maxToolCalls ?? 1)
+              : (settings.executionSettings?.maxToolCalls ?? 1),
             agentNote: n.data.agent_note || '',
             credentials: {
               apiKey: conn?.apiKey || "",
@@ -222,8 +225,11 @@ export function useDeployBlueprint() {
               return { id: toolId, isGlobal: true };
             }),
             enableCustomLimits: !!n.data.enableCustomLimits,
-            maxTokens: n.data.maxTokens || 100000,
-            maxIterations: n.data.maxIterations || 25,
+            maxTokens: n.data.enableCustomLimits ? (n.data.maxTokens || 100000) : 100000,
+            maxIterations: n.data.enableCustomLimits ? (n.data.maxIterations || 25) : 25,
+            maxToolCalls: n.data.enableCustomLimits 
+              ? (n.data.maxToolCalls ?? settings.executionSettings?.maxToolCalls ?? 1)
+              : (settings.executionSettings?.maxToolCalls ?? 1),
             agentNote: n.data.agent_note || '',
             credentials: {
               apiKey: conn?.apiKey || "",

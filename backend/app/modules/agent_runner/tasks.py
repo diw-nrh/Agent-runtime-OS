@@ -47,7 +47,7 @@ async def async_run_agent(payload: dict, task_id: str):
             mcp_tool_map = await load_mcp_tools_for_blueprint(blueprint, stack, task_id=task_id)
             
             # 2. Build the workflow with the loaded tools
-            workflow = build_agent_graph(blueprint, mcp_tool_map)
+            workflow = build_agent_graph(blueprint, mcp_tool_map, task_id=task_id)
             
             # 3. Prepare LangChain messages
             from langchain_core.messages import AIMessage, SystemMessage
@@ -145,8 +145,20 @@ async def async_run_agent(payload: dict, task_id: str):
             publish_event(task_id, "COMPLETED", "Team finished processing successfully.", {"reply": final_text})
             
             return {"status": "success", "reply": final_text}
-    except Exception as e:
-        error_msg = str(e)
+    except BaseException as e:
+        import traceback
+        # Unpack ExceptionGroup to find the real root cause
+        error_parts = []
+        if hasattr(e, 'exceptions'):  # ExceptionGroup
+            for i, sub_exc in enumerate(e.exceptions):
+                tb = ''.join(traceback.format_exception(type(sub_exc), sub_exc, sub_exc.__traceback__))
+                error_parts.append(f"Sub-exception {i+1}: {type(sub_exc).__name__}: {sub_exc}\n{tb}")
+                print(f"\n[ERROR] Sub-exception {i+1}:\n{tb}")
+        
+        full_tb = ''.join(traceback.format_exception(type(e), e, e.__traceback__))
+        print(f"\n[ERROR] Full traceback:\n{full_tb}")
+        
+        error_msg = '\n'.join(error_parts) if error_parts else str(e)
         publish_event(task_id, "ERROR", f"Error occurred: {error_msg}")
         return {"status": "error", "message": error_msg}
 
@@ -155,7 +167,18 @@ def run_agent_pipeline(self, payload: dict):
     task_id = self.request.id
     try:
         return asyncio.run(async_run_agent(payload, task_id))
-    except Exception as e:
-        error_msg = str(e)
+    except BaseException as e:
+        import traceback
+        error_parts = []
+        if hasattr(e, 'exceptions'):
+            for i, sub_exc in enumerate(e.exceptions):
+                tb = ''.join(traceback.format_exception(type(sub_exc), sub_exc, sub_exc.__traceback__))
+                error_parts.append(f"Sub-exception {i+1}: {type(sub_exc).__name__}: {sub_exc}\n{tb}")
+                print(f"\n[FATAL ERROR] Sub-exception {i+1}:\n{tb}")
+        
+        full_tb = ''.join(traceback.format_exception(type(e), e, e.__traceback__))
+        print(f"\n[FATAL ERROR] Full traceback:\n{full_tb}")
+        
+        error_msg = '\n'.join(error_parts) if error_parts else str(e)
         publish_event(task_id, "ERROR", f"Fatal Pipeline Error: {error_msg}")
         return {"status": "error", "message": error_msg}

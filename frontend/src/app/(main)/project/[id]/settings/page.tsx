@@ -17,7 +17,8 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
     enableGlobalLimits: true,
     maxTokensPerRun: 100000,
     maxIterations: 25,
-    enableFaultTolerance: false
+    enableFaultTolerance: false,
+    maxToolCalls: 1
   });
   const [availableTools, setAvailableTools] = useState<any[]>([]);
   const [loadingTools, setLoadingTools] = useState(true);
@@ -420,7 +421,7 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
             </div>
             <div className="flex items-center gap-2 mt-1">
               <button 
-                onClick={() => setExecutionSettings({ enableGlobalLimits: true, maxTokensPerRun: 100000, maxIterations: 25, enableFaultTolerance: false })}
+                onClick={() => setExecutionSettings({ enableGlobalLimits: true, maxTokensPerRun: 100000, maxIterations: 25, enableFaultTolerance: false, maxToolCalls: 1 })}
                 className="flex items-center justify-center px-4 py-2.5 rounded-md font-medium bg-muted text-muted-foreground hover:text-foreground transition-all shadow-sm shrink-0 whitespace-nowrap text-sm"
               >
                 Reset to Default
@@ -490,6 +491,43 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
                   />
                   <p className="text-xs text-muted-foreground mt-2">
                     Maximum number of thought-tool loops before Agent gives up.
+                  </p>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-semibold">
+                      Max Tool Calls per Agent <span className="text-muted-foreground font-normal ml-1">(Default: 1)</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">Infinite</span>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          className="sr-only peer"
+                          checked={executionSettings.maxToolCalls === -1}
+                          onChange={(e) => setExecutionSettings({ 
+                            ...executionSettings, 
+                            maxToolCalls: e.target.checked ? -1 : 1 
+                          })}
+                          disabled={!executionSettings.enableGlobalLimits}
+                        />
+                        <div className="w-9 h-5 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                      </label>
+                    </div>
+                  </div>
+                  <input 
+                    type="number" 
+                    value={executionSettings.maxToolCalls === -1 ? '' : (executionSettings.maxToolCalls ?? 1)}
+                    onChange={(e) => setExecutionSettings({ ...executionSettings, maxToolCalls: parseInt(e.target.value) || 1 })}
+                    className="w-full px-4 py-2.5 border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 text-base"
+                    min={1}
+                    max={100}
+                    disabled={!executionSettings.enableGlobalLimits || executionSettings.maxToolCalls === -1}
+                    placeholder={executionSettings.maxToolCalls === -1 ? "Unlimited" : "Enter max tool calls"}
+                  />
+                  <p className="text-xs text-muted-foreground mt-2">
+                    How many times each Agent can call a tool per run. Turn on Infinite for unlimited calls.
                   </p>
                 </div>
               </div>

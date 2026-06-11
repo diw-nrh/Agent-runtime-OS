@@ -10,6 +10,7 @@ class AgentConfig(BaseModel):
     tools: List[dict] = Field(default_factory=list)
     agent_note: Optional[str] = Field(None, alias="agentNote")
     credentials: Optional[Dict[str, Optional[str]]] = Field(default_factory=dict)
+    max_tool_calls: int = Field(1, alias="maxToolCalls")  # -1 = unlimited
     
     class Config:
         populate_by_name = True

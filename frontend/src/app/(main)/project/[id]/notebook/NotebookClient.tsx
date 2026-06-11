@@ -65,6 +65,7 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
   const [enableCustomLimits, setEnableCustomLimits] = useState(false);
   const [maxTokens, setMaxTokens] = useState(100000);
   const [maxIterations, setMaxIterations] = useState(25);
+  const [maxToolCalls, setMaxToolCalls] = useState(1);
   
   // Editor re-mount key (to force Tiptap to load new content)
   const [editorKey, setEditorKey] = useState(0);
@@ -126,6 +127,7 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
       setEnableCustomLimits(false);
       setMaxTokens(100000);
       setMaxIterations(25);
+      setMaxToolCalls(1);
       setEditorKey(prev => prev + 1); // Force editor refresh
     } else {
       const node = allNodes.find(n => n.id === selectedAgentId);
@@ -140,6 +142,7 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
         setEnableCustomLimits(!!node.data.enableCustomLimits);
         setMaxTokens((node.data.maxTokens as number) || 100000);
         setMaxIterations((node.data.maxIterations as number) || 25);
+        setMaxToolCalls((node.data.maxToolCalls as number) ?? 1);
         
         setEditorKey(prev => prev + 1); // Force editor refresh
       }
@@ -197,7 +200,8 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
           tools: selectedTools,
           enableCustomLimits,
           maxTokens,
-          maxIterations
+          maxIterations,
+          maxToolCalls
         }
       };
       updatedNodes.push(newNode);
@@ -216,7 +220,8 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
             tools: selectedTools,
             enableCustomLimits,
             maxTokens,
-            maxIterations
+            maxIterations,
+            maxToolCalls
           }
         } : n
       );
@@ -615,6 +620,32 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
                     value={maxIterations}
                     onChange={(e) => setMaxIterations(parseInt(e.target.value) || 0)}
                     min={1}
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-medium">Max Tool Calls</label>
+                    <label className="flex items-center gap-1 cursor-pointer">
+                      <span className="text-[10px] text-muted-foreground">Infinite</span>
+                      <div className="relative inline-flex items-center">
+                        <input 
+                          type="checkbox" 
+                          className="sr-only peer"
+                          checked={maxToolCalls === -1}
+                          onChange={(e) => setMaxToolCalls(e.target.checked ? -1 : 1)}
+                        />
+                        <div className="w-6 h-3.5 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1.5px] after:left-[1.5px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-2.5 after:w-2.5 after:transition-all peer-checked:bg-emerald-500"></div>
+                      </div>
+                    </label>
+                  </div>
+                  <input
+                    type="number"
+                    className="w-full text-sm p-2 bg-background border rounded-md outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+                    value={maxToolCalls === -1 ? '' : (maxToolCalls ?? 1)}
+                    onChange={(e) => setMaxToolCalls(parseInt(e.target.value) || 1)}
+                    min={1}
+                    disabled={maxToolCalls === -1}
+                    placeholder={maxToolCalls === -1 ? "Unlimited" : "Enter max tool calls"}
                   />
                 </div>
               </div>

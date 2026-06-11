@@ -32,10 +32,11 @@ class DeterministicToolWrapper(Runnable):
     class Config:
         arbitrary_types_allowed = True
     
-    def __init__(self, llm, task_id=None):
+    def __init__(self, llm, task_id=None, max_tool_calls=1):
         super().__init__()
         object.__setattr__(self, 'bound', llm)
         object.__setattr__(self, '_task_id', task_id)
+        object.__setattr__(self, '_max_tool_calls', max_tool_calls)  # -1 = unlimited
     
     def _publish_debug(self, debug_data: dict):
         """Publish debug info to Redis so frontend debugger can show it."""
@@ -56,7 +57,7 @@ class DeterministicToolWrapper(Runnable):
     def bind_tools(self, *args, **kwargs):
         """Override bind_tools to keep the wrapper around the new bound LLM."""
         new_llm = self.bound.bind_tools(*args, **kwargs)
-        wrapper = DeterministicToolWrapper(new_llm, task_id=self._task_id)
+        wrapper = DeterministicToolWrapper(new_llm, task_id=self._task_id, max_tool_calls=self._max_tool_calls)
         return wrapper
         
     def invoke(self, input, config=None, **kwargs):
@@ -68,7 +69,8 @@ class DeterministicToolWrapper(Runnable):
     async def _ainvoke_with_fallback(self, inputs, config=None, **invoke_kwargs):
         target_tool_name = None
         alias_used = None
-        tool_already_called = False
+        tool_call_count = 0
+        max_calls = self._max_tool_calls  # -1 = unlimited, 1 = default
         
         messages = inputs.get("messages", []) if isinstance(inputs, dict) else inputs
         
@@ -89,17 +91,18 @@ class DeterministicToolWrapper(Runnable):
                         target_tool_name = match.group(2)
                 
                 elif msg_type == "human" or msg_class == "HumanMessage":
-                    tool_already_called = False
+                    tool_call_count = 0  # Reset counter on new human message
                     
                 elif msg_type == "ai" or msg_class == "AIMessage":
                     tool_calls = msg.get("tool_calls", []) if isinstance(msg, dict) else getattr(msg, "tool_calls", [])
                     for tc in tool_calls:
                         if tc.get("name") == target_tool_name:
-                            tool_already_called = True
+                            tool_call_count += 1
 
-        # If the tool has already been called in this session, inject a hidden instruction to force it to stop looping.
-        if tool_already_called and target_tool_name:
-            stop_warning = SystemMessage(content="SYSTEM ALERT: You have successfully used the requested tool. DO NOT call any more tools. Please output a brief final response to the user and stop.")
+        # If tool has been called enough times, inject stop warning. (-1 = unlimited, skip this)
+        tool_limit_reached = (max_calls != -1 and tool_call_count >= max_calls)
+        if tool_limit_reached and target_tool_name:
+            stop_warning = SystemMessage(content=f"SYSTEM ALERT: You have successfully used the requested tool {tool_call_count} time(s). The maximum allowed is {max_calls}. DO NOT call any more tools. Please output a brief final response to the user and stop.")
             if isinstance(inputs, dict):
                 inputs = {**inputs, "messages": messages + [stop_warning]}
             else:
@@ -127,11 +130,11 @@ class DeterministicToolWrapper(Runnable):
         # === DEBUG LOG: Always show what the AI returned ===
         ai_content = getattr(result, 'content', '') or ''
         ai_tool_calls = getattr(result, 'tool_calls', []) or []
-        hijack_will_fire = bool(target_tool_name and not tool_already_called and not ai_tool_calls and isinstance(ai_content, str))
+        hijack_will_fire = bool(target_tool_name and not tool_limit_reached and not ai_tool_calls and isinstance(ai_content, str))
         
         debug_info = {
             "target_tool": target_tool_name,
-            "tool_already_called": tool_already_called,
+            "tool_limit_reached": tool_limit_reached,
             "ai_raw_content": ai_content[:500] if ai_content else "",
             "ai_native_tool_calls": [{"name": tc.get("name", ""), "args": tc.get("args", {})} for tc in ai_tool_calls] if ai_tool_calls else [],
             "hijack_will_fire": hijack_will_fire
@@ -146,7 +149,7 @@ class DeterministicToolWrapper(Runnable):
             "content": debug_info
         })
         
-        if target_tool_name and not tool_already_called and not result.tool_calls and isinstance(result.content, str):
+        if target_tool_name and not tool_limit_reached and not result.tool_calls and isinstance(result.content, str):
             content = result.content.strip()
             # Check if AI output starts with @alias or [tool]
             if (alias_used and content.startswith(f"@{alias_used}")) or content.startswith(f"[{target_tool_name}]") or len(content) > 0:
@@ -444,7 +447,7 @@ def build_agent_graph(blueprint: AgentBlueprint, mcp_tool_map: dict = None, task
                         final_system_prompt += f"\n- **{target_agent.name}**{caps_str} (Sequential Handoff): {sys_snippet}"
         
         # Wrap llm with DeterministicToolWrapper to intercept @Alias@[MCP_ToolName]
-        wrapped_llm = DeterministicToolWrapper(llm, task_id=task_id)
+        wrapped_llm = DeterministicToolWrapper(llm, task_id=task_id, max_tool_calls=agent.max_tool_calls)
         
         # create_react_agent returns a compiled graph that acts as a Node
         agent_node = create_react_agent(

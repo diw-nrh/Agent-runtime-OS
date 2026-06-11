@@ -30,6 +30,7 @@ export interface ExecutionSettings {
   maxTokensPerRun: number;
   maxIterations: number;
   enableFaultTolerance: boolean;
+  maxToolCalls: number; // -1 = unlimited, 1 = default (safest)
 }
 
 export interface Skill {
@@ -83,6 +84,7 @@ const defaultSettings: ProjectSettings = {
     maxTokensPerRun: 100000,
     maxIterations: 25,
     enableFaultTolerance: false,
+    maxToolCalls: 1,
   }
 };
 
