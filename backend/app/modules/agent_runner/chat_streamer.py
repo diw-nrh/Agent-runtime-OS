@@ -2,12 +2,19 @@ import json
 import asyncio
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from app.modules.agent_runner.domain.models import ChatRequest
-from app.modules.agent_runner.domain.graph import build_agent_graph
+import os
+from app.modules.agent_runner.application.builder import build_agent_graph
+from app.modules.agent_runner.infrastructure.adapters.langchain_llm_factory import LangchainLLMFactory
+from app.modules.agent_runner.infrastructure.adapters.redis_telemetry import RedisTelemetry
+
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 async def stream_agent_chat(chat_request: ChatRequest):
     try:
         # Build graph
-        workflow = build_agent_graph(chat_request.blueprint)
+        llm_factory = LangchainLLMFactory()
+        telemetry = RedisTelemetry(REDIS_URL)
+        workflow = build_agent_graph(chat_request.blueprint, llm_factory=llm_factory, telemetry=telemetry)
 
         # Convert simple chat messages to Langchain messages
         lc_messages = []

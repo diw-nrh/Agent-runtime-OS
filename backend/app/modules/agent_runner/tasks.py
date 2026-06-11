@@ -6,7 +6,9 @@ from langchain_core.messages import HumanMessage
 from app.core.celery_app import celery_app
 from contextlib import AsyncExitStack
 from app.modules.agent_runner.domain.models import AgentBlueprint
-from app.modules.agent_runner.domain.graph import build_agent_graph
+from app.modules.agent_runner.application.builder import build_agent_graph
+from app.modules.agent_runner.infrastructure.adapters.langchain_llm_factory import LangchainLLMFactory
+from app.modules.agent_runner.infrastructure.adapters.redis_telemetry import RedisTelemetry
 from app.modules.agent_runner.domain.state import AgentState
 from app.modules.mcp_gateway.mcp_client import load_mcp_tools_for_blueprint
 
@@ -47,7 +49,15 @@ async def async_run_agent(payload: dict, task_id: str):
             mcp_tool_map = await load_mcp_tools_for_blueprint(blueprint, stack, task_id=task_id)
             
             # 2. Build the workflow with the loaded tools
-            workflow = build_agent_graph(blueprint, mcp_tool_map, task_id=task_id)
+            llm_factory = LangchainLLMFactory()
+            telemetry = RedisTelemetry(REDIS_URL)
+            workflow = build_agent_graph(
+                blueprint, 
+                llm_factory=llm_factory, 
+                telemetry=telemetry, 
+                mcp_tool_map=mcp_tool_map, 
+                task_id=task_id
+            )
             
             # 3. Prepare LangChain messages
             from langchain_core.messages import AIMessage, SystemMessage
