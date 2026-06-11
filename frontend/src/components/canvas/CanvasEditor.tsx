@@ -217,6 +217,7 @@ export function CanvasEditor({
           type: 'configurable',
           animated: true,
         }}
+        elevateEdgesOnSelect={true}
         fitView
         className="bg-muted/10"
       >

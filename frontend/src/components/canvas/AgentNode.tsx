@@ -132,7 +132,7 @@ export function AgentNode({ id, data, selected }: AgentNodeProps & { selected?: 
       onDoubleClick={handleDoubleClick}
       className={`glass-card text-card-foreground rounded-xl w-72 overflow-hidden cursor-pointer glass-hover ${selected ? 'ring-2 ring-primary/80 shadow-[0_0_15px_rgba(255,255,255,0.1)]' : ''}`}
     >
-      <Handle type="target" position={Position.Top} className="w-3 h-3 bg-primary border-2 border-background" />
+      <Handle type="target" position={Position.Top} className="w-4 h-4 bg-primary border-2 border-background hover:scale-125 transition-transform cursor-crosshair z-10" />
       
       {/* Node Header */}
       <div className="bg-primary/5 backdrop-blur-sm p-3 flex items-center justify-between border-b border-border/50">
@@ -308,7 +308,7 @@ export function AgentNode({ id, data, selected }: AgentNodeProps & { selected?: 
       <Handle 
         type="source" 
         position={Position.Bottom} 
-        className="w-3 h-3 bg-primary border-2 border-background" 
+        className="w-4 h-4 bg-primary border-2 border-background hover:scale-125 transition-transform cursor-crosshair z-10" 
         onDoubleClick={handleSourceDoubleClick}
       />
     </div>
