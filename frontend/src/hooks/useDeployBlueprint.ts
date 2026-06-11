@@ -114,6 +114,9 @@ export function useDeployBlueprint() {
             maxToolCalls: n.data.enableCustomLimits 
               ? (n.data.maxToolCalls ?? settings.executionSettings?.maxToolCalls ?? 1)
               : (settings.executionSettings?.maxToolCalls ?? 1),
+            maxMemoryMessages: n.data.enableCustomLimits 
+              ? (n.data.maxMemoryMessages ?? settings.executionSettings?.maxMemoryMessages ?? 10)
+              : (settings.executionSettings?.maxMemoryMessages ?? 10),
             agentNote: n.data.agent_note || '',
             credentials: {
               apiKey: conn?.apiKey || "",
@@ -230,6 +233,9 @@ export function useDeployBlueprint() {
             maxToolCalls: n.data.enableCustomLimits 
               ? (n.data.maxToolCalls ?? settings.executionSettings?.maxToolCalls ?? 1)
               : (settings.executionSettings?.maxToolCalls ?? 1),
+            maxMemoryMessages: n.data.enableCustomLimits 
+              ? (n.data.maxMemoryMessages ?? settings.executionSettings?.maxMemoryMessages ?? 10)
+              : (settings.executionSettings?.maxMemoryMessages ?? 10),
             agentNote: n.data.agent_note || '',
             credentials: {
               apiKey: conn?.apiKey || "",

@@ -32,11 +32,12 @@ class DeterministicToolWrapper(Runnable):
     class Config:
         arbitrary_types_allowed = True
     
-    def __init__(self, llm, task_id=None, max_tool_calls=1):
+    def __init__(self, llm, task_id=None, max_tool_calls=1, max_memory_messages=10):
         super().__init__()
         object.__setattr__(self, 'bound', llm)
         object.__setattr__(self, '_task_id', task_id)
         object.__setattr__(self, '_max_tool_calls', max_tool_calls)  # -1 = unlimited
+        object.__setattr__(self, '_max_memory_messages', max_memory_messages)  # -1 = unlimited
     
     def _publish_debug(self, debug_data: dict):
         """Publish debug info to Redis so frontend debugger can show it."""
@@ -57,7 +58,7 @@ class DeterministicToolWrapper(Runnable):
     def bind_tools(self, *args, **kwargs):
         """Override bind_tools to keep the wrapper around the new bound LLM."""
         new_llm = self.bound.bind_tools(*args, **kwargs)
-        wrapper = DeterministicToolWrapper(new_llm, task_id=self._task_id, max_tool_calls=self._max_tool_calls)
+        wrapper = DeterministicToolWrapper(new_llm, task_id=self._task_id, max_tool_calls=self._max_tool_calls, max_memory_messages=self._max_memory_messages)
         return wrapper
         
     def invoke(self, input, config=None, **kwargs):
@@ -74,12 +75,12 @@ class DeterministicToolWrapper(Runnable):
         
         messages = inputs.get("messages", []) if isinstance(inputs, dict) else inputs
         
-        if messages:
+        if messages and self._max_memory_messages != -1:
             try:
                 from langchain_core.messages import trim_messages
                 messages = trim_messages(
                     messages,
-                    max_tokens=10, # Keep the last 10 messages
+                    max_tokens=self._max_memory_messages, # Keep the last N messages
                     strategy="last",
                     token_counter=len,
                     include_system=True,
@@ -467,7 +468,7 @@ def build_agent_graph(blueprint: AgentBlueprint, mcp_tool_map: dict = None, task
                         final_system_prompt += f"\n- **{target_agent.name}**{caps_str} (Sequential Handoff): {sys_snippet}"
         
         # Wrap llm with DeterministicToolWrapper to intercept @Alias@[MCP_ToolName]
-        wrapped_llm = DeterministicToolWrapper(llm, task_id=task_id, max_tool_calls=agent.max_tool_calls)
+        wrapped_llm = DeterministicToolWrapper(llm, task_id=task_id, max_tool_calls=agent.max_tool_calls, max_memory_messages=agent.max_memory_messages)
         
         # Wrap tools in a ToolNode with handle_tool_errors to prevent crashes when tools fail validation
         tool_node = ToolNode(requested_tools, handle_tool_errors=True) if requested_tools else []

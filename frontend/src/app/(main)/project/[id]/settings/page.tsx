@@ -18,7 +18,8 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
     maxTokensPerRun: 100000,
     maxIterations: 25,
     enableFaultTolerance: false,
-    maxToolCalls: 1
+    maxToolCalls: 1,
+    maxMemoryMessages: 10
   });
   const [availableTools, setAvailableTools] = useState<any[]>([]);
   const [loadingTools, setLoadingTools] = useState(true);
@@ -239,13 +240,7 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
             <Cpu size={16} /> AI Connections
             {activeTab === 'connections' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-t-md" />}
           </button>
-          <button 
-            className={`px-4 py-3 font-medium text-sm transition-colors relative flex items-center gap-2 ${activeTab === 'tools' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-            onClick={() => setActiveTab('tools')}
-          >
-            <Package size={16} /> MCP Tools
-            {activeTab === 'tools' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-t-md" />}
-          </button>
+
           <button 
             className={`px-4 py-3 font-medium text-sm transition-colors relative flex items-center gap-2 ${activeTab === 'limits' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
             onClick={() => setActiveTab('limits')}
@@ -322,93 +317,6 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
         </div>
       )}
 
-      {activeTab === 'tools' && (
-        <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4 mb-8">
-            <div className="max-w-2xl">
-              <h2 className="text-2xl font-bold tracking-tight">MCP Tools</h2>
-              <p className="text-muted-foreground mt-2 leading-relaxed">
-                Add Model Context Protocol (MCP) servers to give your agents custom capabilities.
-              </p>
-            </div>
-            <button 
-              onClick={() => handleOpenCustomModal()}
-              className="flex items-center justify-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-md font-medium hover:bg-primary/90 transition-all shadow-sm shrink-0 whitespace-nowrap mt-1"
-            >
-              <Plus className="w-4 h-4" />
-              Add Local MCP Tool
-            </button>
-          </div>
-
-          {customTools.length === 0 ? (
-            <div className="text-center py-16 border-2 border-dashed border-white/10 rounded-xl text-muted-foreground glass-panel">
-              <Package className="w-12 h-12 mx-auto mb-4 opacity-20" />
-              <h3 className="text-lg font-medium text-foreground">No Custom Tools Yet</h3>
-              <p className="mb-6">Connect your first local MCP server to expand your agent's capabilities.</p>
-              <button 
-                onClick={() => handleOpenCustomModal()}
-                className="bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm hover:bg-primary/90"
-              >
-                Add Local MCP Tool
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4">
-              {customTools.map((tool) => (
-                <div key={tool.id} className="glass-card rounded-xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 group glass-hover">
-                  <div className="flex items-start gap-4">
-                    <div className="p-3 bg-muted rounded-lg shrink-0">
-                      <Wrench className="w-6 h-6 text-foreground" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-lg">{tool.name}</h3>
-                      {tool.description && <p className="text-sm text-muted-foreground mt-1">{tool.description}</p>}
-                      <div className="flex items-center gap-2 mt-2">
-                        <span className="text-xs px-2 py-0.5 rounded-md bg-muted font-mono border">
-                          {tool.type.toUpperCase()}
-                        </span>
-                        {tool.type === 'stdio' && tool.config.command && (
-                          <span className="text-xs text-muted-foreground font-mono truncate max-w-sm">
-                            {tool.config.command} {tool.config.args?.join(' ')}
-                          </span>
-                        )}
-                        {tool.type === 'sse' && tool.config.url && (
-                          <span className="text-xs text-muted-foreground font-mono truncate max-w-sm">
-                            {tool.config.url}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 md:opacity-0 group-hover:opacity-100 transition-opacity self-end md:self-center">
-                    <button 
-                      onClick={() => testMcpConnection(tool.type, tool.config.url || "", tool.config.command || "", tool.config.args || [], tool.id)} 
-                      disabled={testStatus[tool.id] === 'testing'} 
-                      className={`p-2 rounded-md transition-colors border disabled:opacity-50 ${
-                        testStatus[tool.id] === 'success' ? 'bg-green-500/10 text-green-500 hover:bg-green-500/20 border-green-500/20' :
-                        testStatus[tool.id] === 'error' ? 'bg-red-500/10 text-red-500 hover:bg-red-500/20 border-red-500/20' :
-                        'bg-muted text-muted-foreground hover:bg-blue-500/10 hover:text-blue-500'
-                      }`} 
-                      title="Test Connection"
-                    >
-                      {testStatus[tool.id] === 'testing' ? <Loader2 className="w-4 h-4 animate-spin" /> : 
-                       testStatus[tool.id] === 'success' ? <CheckCircle2 className="w-4 h-4" /> :
-                       testStatus[tool.id] === 'error' ? <XCircle className="w-4 h-4" /> :
-                       <Activity className="w-4 h-4" />}
-                    </button>
-                    <button onClick={() => handleOpenCustomModal(tool)} className="p-2 bg-muted hover:bg-primary/10 text-muted-foreground hover:text-primary rounded-md transition-colors border">
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => handleDeleteCustomTool(tool.id)} className="p-2 bg-muted hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded-md transition-colors border">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
       {activeTab === 'limits' && (
         <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -421,7 +329,7 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
             </div>
             <div className="flex items-center gap-2 mt-1">
               <button 
-                onClick={() => setExecutionSettings({ enableGlobalLimits: true, maxTokensPerRun: 100000, maxIterations: 25, enableFaultTolerance: false, maxToolCalls: 1 })}
+                onClick={() => setExecutionSettings({ enableGlobalLimits: true, maxTokensPerRun: 100000, maxIterations: 25, enableFaultTolerance: false, maxToolCalls: 1, maxMemoryMessages: 10 })}
                 className="flex items-center justify-center px-4 py-2.5 rounded-md font-medium bg-muted text-muted-foreground hover:text-foreground transition-all shadow-sm shrink-0 whitespace-nowrap text-sm"
               >
                 Reset to Default
@@ -528,6 +436,43 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
                   />
                   <p className="text-xs text-muted-foreground mt-2">
                     How many times each Agent can call a tool per run. Turn on Infinite for unlimited calls.
+                  </p>
+                </div>
+
+                <div className="pt-4 border-t border-white/5">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-semibold">
+                      Max Memory Messages <span className="text-muted-foreground font-normal ml-1">(Default: 10)</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">Infinite</span>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          className="sr-only peer"
+                          checked={executionSettings.maxMemoryMessages === -1}
+                          onChange={(e) => setExecutionSettings({ 
+                            ...executionSettings, 
+                            maxMemoryMessages: e.target.checked ? -1 : 10 
+                          })}
+                          disabled={!executionSettings.enableGlobalLimits}
+                        />
+                        <div className="w-9 h-5 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                      </label>
+                    </div>
+                  </div>
+                  <input 
+                    type="number" 
+                    value={executionSettings.maxMemoryMessages === -1 ? '' : (executionSettings.maxMemoryMessages ?? 10)}
+                    onChange={(e) => setExecutionSettings({ ...executionSettings, maxMemoryMessages: parseInt(e.target.value) || 10 })}
+                    className="w-full px-4 py-2.5 border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 text-base"
+                    min={2}
+                    max={100}
+                    disabled={!executionSettings.enableGlobalLimits || executionSettings.maxMemoryMessages === -1}
+                    placeholder={executionSettings.maxMemoryMessages === -1 ? "Unlimited" : "Enter max memory messages"}
+                  />
+                  <p className="text-xs text-muted-foreground mt-2">
+                    How many past messages the Agent remembers per turn. Turn on Infinite to remember everything.
                   </p>
                 </div>
               </div>
