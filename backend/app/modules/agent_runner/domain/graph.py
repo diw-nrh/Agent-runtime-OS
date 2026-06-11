@@ -15,6 +15,11 @@ from langchain_core.runnables import Runnable
 import re
 import json
 import uuid
+import os
+import redis
+
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+_hijack_redis = redis.from_url(REDIS_URL)
 
 class DeterministicToolWrapper(Runnable):
     """
@@ -24,8 +29,35 @@ class DeterministicToolWrapper(Runnable):
     it hijacks the response, strips out the alias/tool name, and forces 
     a Tool Call execution with the remaining text as the argument.
     """
-    def __init__(self, llm):
-        self.bound = llm
+    class Config:
+        arbitrary_types_allowed = True
+    
+    def __init__(self, llm, task_id=None):
+        super().__init__()
+        object.__setattr__(self, 'bound', llm)
+        object.__setattr__(self, '_task_id', task_id)
+    
+    def _publish_debug(self, debug_data: dict):
+        """Publish debug info to Redis so frontend debugger can show it."""
+        if self._task_id:
+            try:
+                _hijack_redis.publish(f"agent_stream_{self._task_id}", json.dumps({
+                    "status": "TRACE_STEP",
+                    "message": "New trace step",
+                    "data": debug_data
+                }))
+            except Exception:
+                pass
+    
+    def __getattr__(self, name):
+        """Delegate any missing attributes (bind_tools, with_config, etc.) to the underlying LLM."""
+        return getattr(object.__getattribute__(self, 'bound'), name)
+    
+    def bind_tools(self, *args, **kwargs):
+        """Override bind_tools to keep the wrapper around the new bound LLM."""
+        new_llm = self.bound.bind_tools(*args, **kwargs)
+        wrapper = DeterministicToolWrapper(new_llm, task_id=self._task_id)
+        return wrapper
         
     def invoke(self, input, config=None, **kwargs):
         return self.bound.invoke(input, config=config, **kwargs)
@@ -50,8 +82,8 @@ class DeterministicToolWrapper(Runnable):
                     if not isinstance(content, str):
                         content = str(content)
                     
-                    # Use a robust regex that ignores HTML tags and spaces, and makes @alias optional
-                    match = re.search(r'(?:@(\w+)\s*(?:<[^>]+>)*\s*)?\[(\w+)\]', content)
+                    # Use a robust regex that ignores HTML tags and spaces, makes @alias optional, and tolerates missing closing bracket
+                    match = re.search(r'(?:@(\w+)\s*(?:<[^>]+>)*\s*)?\[(\w+)(?:\])?', content)
                     if match:
                         alias_used = match.group(1)
                         target_tool_name = match.group(2)
@@ -64,6 +96,14 @@ class DeterministicToolWrapper(Runnable):
                     for tc in tool_calls:
                         if tc.get("name") == target_tool_name:
                             tool_already_called = True
+
+        # If the tool has already been called in this session, inject a hidden instruction to force it to stop looping.
+        if tool_already_called and target_tool_name:
+            stop_warning = SystemMessage(content="SYSTEM ALERT: You have successfully used the requested tool. DO NOT call any more tools. Please output a brief final response to the user and stop.")
+            if isinstance(inputs, dict):
+                inputs = {**inputs, "messages": messages + [stop_warning]}
+            else:
+                inputs = messages + [stop_warning]
 
         try:
             result = await self.bound.ainvoke(inputs, config, **invoke_kwargs)
@@ -84,33 +124,92 @@ class DeterministicToolWrapper(Runnable):
                     )
             raise e
         
+        # === DEBUG LOG: Always show what the AI returned ===
+        ai_content = getattr(result, 'content', '') or ''
+        ai_tool_calls = getattr(result, 'tool_calls', []) or []
+        hijack_will_fire = bool(target_tool_name and not tool_already_called and not ai_tool_calls and isinstance(ai_content, str))
+        
+        debug_info = {
+            "target_tool": target_tool_name,
+            "tool_already_called": tool_already_called,
+            "ai_raw_content": ai_content[:500] if ai_content else "",
+            "ai_native_tool_calls": [{"name": tc.get("name", ""), "args": tc.get("args", {})} for tc in ai_tool_calls] if ai_tool_calls else [],
+            "hijack_will_fire": hijack_will_fire
+        }
+        print(f"\n[AI DEBUG] {json.dumps(debug_info, ensure_ascii=False, default=str)}\n")
+        
+        # Publish to frontend debugger
+        self._publish_debug({
+            "stepIndex": -1,
+            "agentId": "system",
+            "type": "AI_DEBUG",
+            "content": debug_info
+        })
+        
         if target_tool_name and not tool_already_called and not result.tool_calls and isinstance(result.content, str):
             content = result.content.strip()
             # Check if AI output starts with @alias or [tool]
             if (alias_used and content.startswith(f"@{alias_used}")) or content.startswith(f"[{target_tool_name}]") or len(content) > 0:
+                raw_arg = content
+                
+                # 1. Strip the alias and tool name from the content
                 if alias_used:
-                    raw_arg = re.sub(rf'@{alias_used}\s*(?:<[^>]+>)*\s*(?:\[{target_tool_name}\])?', '', content)
-                else:
-                    raw_arg = content
-                raw_arg = re.sub(rf'\[{target_tool_name}\]', '', raw_arg).strip()
+                    raw_arg = re.sub(rf'@{alias_used}\s*(?:<[^>]+>)*\s*', '', raw_arg)
                 
-                if not raw_arg and isinstance(messages, list):
-                    for m in reversed(messages):
-                        msg_type = m.get("type", "") if isinstance(m, dict) else getattr(m, "type", "")
-                        msg_class = "" if isinstance(m, dict) else m.__class__.__name__
-                        if msg_type == "human" or msg_class == "HumanMessage":
-                            raw_arg = m.get("content", "") if isinstance(m, dict) else getattr(m, "content", "")
-                            if not isinstance(raw_arg, str):
-                                if isinstance(raw_arg, list):
-                                    raw_arg = " ".join([str(x.get("text", "")) if isinstance(x, dict) else str(x) for x in raw_arg])
-                                else:
-                                    raw_arg = str(raw_arg)
-                            raw_arg = raw_arg.strip()
-                            break
+                # Remove [tool_name
+                raw_arg = re.sub(rf'\[{target_tool_name}\b', '', raw_arg)
                 
-                # Fetch tools dynamically from the bound llm or graph
-                # But since we just want the first param, let's hardcode it to 'message' or 'task_instruction'
-                args = {"message": raw_arg}
+                raw_arg = raw_arg.strip()
+                
+                # Strip leading brackets, parentheses, quotes, colons, commas, and spaces
+                raw_arg = re.sub(r'^[\(\[\]\"\'\:\,\s]+', '', raw_arg)
+                
+                # Strip hallucinated parameter names like message=" or text=
+                raw_arg = re.sub(r'^(?:message|msg|text)\s*=\s*[\"\']?', '', raw_arg, flags=re.IGNORECASE)
+                
+                # Strip hallucinated @AgentName or @alias prefixes that AI prepends to the message
+                raw_arg = re.sub(r'^@\w+\s*', '', raw_arg)
+                
+                # 3. Try to extract JSON arguments if AI tried to be clever: {"message": "hi"} or [tool_name, {"message": "hi"}]
+                json_match = re.search(r'(\{.*?\})', content, re.DOTALL)
+                args = None
+                if json_match:
+                    try:
+                        parsed_args = json.loads(json_match.group(1))
+                        if isinstance(parsed_args, dict):
+                            args = parsed_args
+                    except json.JSONDecodeError:
+                        pass
+                
+                # 4. If no valid JSON was found, clean the raw string argument
+                if not args:
+                    # Strip trailing brackets, parentheses, quotes, and spaces
+                    clean_arg = re.sub(r'[\)\[\]\"\'\s]+$', '', raw_arg)
+                    
+                    if not clean_arg and isinstance(messages, list):
+                        for m in reversed(messages):
+                            msg_type = m.get("type", "") if isinstance(m, dict) else getattr(m, "type", "")
+                            msg_class = "" if isinstance(m, dict) else m.__class__.__name__
+                            if msg_type == "human" or msg_class == "HumanMessage":
+                                clean_arg = m.get("content", "") if isinstance(m, dict) else getattr(m, "content", "")
+                                if not isinstance(clean_arg, str):
+                                    if isinstance(clean_arg, list):
+                                        clean_arg = " ".join([str(x.get("text", "")) if isinstance(x, dict) else str(x) for x in clean_arg])
+                                    else:
+                                        clean_arg = str(clean_arg)
+                                clean_arg = clean_arg.strip()
+                                break
+                    
+                    # Hardcode fallback to 'message' for now
+                    args = {"message": clean_arg}
+                
+                # === DEBUG LOG: Show the hijack process ===
+                print(f"\n{'='*60}")
+                print(f"[HIJACK DEBUG] AI Raw Output: {content}")
+                print(f"[HIJACK DEBUG] After Cleaning: {raw_arg}")
+                print(f"[HIJACK DEBUG] Final Args: {args}")
+                print(f"[HIJACK DEBUG] Target Tool: {target_tool_name}")
+                print(f"{'='*60}\n")
                 
                 return AIMessage(
                     content="",
@@ -147,7 +246,7 @@ def create_handoff_tool(target_agent_id: str, target_agent_name: str, target_age
     
     return handoff_tool
 
-def build_agent_graph(blueprint: AgentBlueprint, mcp_tool_map: dict = None):
+def build_agent_graph(blueprint: AgentBlueprint, mcp_tool_map: dict = None, task_id: str = None):
     """
     Dynamically builds a LangGraph StateGraph connecting multiple Agents using a Swarm Architecture.
     """
@@ -345,7 +444,7 @@ def build_agent_graph(blueprint: AgentBlueprint, mcp_tool_map: dict = None):
                         final_system_prompt += f"\n- **{target_agent.name}**{caps_str} (Sequential Handoff): {sys_snippet}"
         
         # Wrap llm with DeterministicToolWrapper to intercept @Alias@[MCP_ToolName]
-        wrapped_llm = DeterministicToolWrapper(llm)
+        wrapped_llm = DeterministicToolWrapper(llm, task_id=task_id)
         
         # create_react_agent returns a compiled graph that acts as a Node
         agent_node = create_react_agent(

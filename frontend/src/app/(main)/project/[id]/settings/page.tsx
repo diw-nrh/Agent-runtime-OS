@@ -27,7 +27,7 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
   
   // Form State
   const [name, setName] = useState("");
-  const [provider, setProvider] = useState<AIProviderType>("openai");
+  const [provider, setProvider] = useState<AIProviderType>("openai-compatible");
   const [apiKey, setApiKey] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
 

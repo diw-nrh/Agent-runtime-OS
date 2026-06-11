@@ -44,8 +44,8 @@ async def compile_blueprint(blueprint: AgentBlueprint, request: Request):
 async def stop_agent_task(task_id: str):
     """Forcefully stop a running agent task."""
     try:
-        # Terminate the task using Celery
-        celery_app.control.revoke(task_id, terminate=True, signal="SIGKILL")
+        # Terminate the task using Celery. Omit signal="SIGKILL" because Windows doesn't support it.
+        celery_app.control.revoke(task_id, terminate=True)
         
         # Publish an error/stop message to close the SSE stream on the client
         redis_client.publish(f"agent_stream_{task_id}", json.dumps({
