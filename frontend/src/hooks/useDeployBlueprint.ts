@@ -85,7 +85,7 @@ export function useDeployBlueprint() {
             id: n.id,
             name: n.data.label || 'Unknown Agent',
             systemPrompt: n.data.system_prompt || 'You are a helpful assistant generated from canvas.',
-            llmProvider: conn?.provider || n.data.provider || 'openai-compatible',
+            llmProvider: (conn?.provider || n.data.provider) === 'local' ? 'openai-compatible' : (conn?.provider || n.data.provider || 'openai-compatible'),
             modelId: n.data.model || '',
             tools: (n.data.tools || []).map((toolId: string) => {
               const custom = settings.customTools?.find(t => t.id === toolId);
@@ -172,7 +172,7 @@ export function useDeployBlueprint() {
             id: n.id,
             name: n.data.label || 'Unknown Agent',
             systemPrompt: n.data.system_prompt || 'You are a helpful assistant generated from canvas.',
-            llmProvider: conn?.provider || n.data.provider || 'openai-compatible',
+            llmProvider: (conn?.provider || n.data.provider) === 'local' ? 'openai-compatible' : (conn?.provider || n.data.provider || 'openai-compatible'),
             modelId: n.data.model || '',
             tools: (n.data.tools || []).map((toolId: string) => {
               const custom = settings.customTools?.find(t => t.id === toolId);

@@ -76,7 +76,7 @@ export function PlaygroundClient({ blueprint }: PlaygroundClientProps) {
       const { getProjectSettings } = useSettingsStore.getState();
       const { connections } = getProjectSettings(blueprint.id);
       
-      const universalConn = connections.find(c => c.provider === 'openai-compatible');
+      const universalConn = connections.find(c => c.provider === 'openai-compatible' || c.provider === 'local');
       const anthropicConn = connections.find(c => c.provider === 'anthropic');
       const googleConn = connections.find(c => c.provider === 'google');
       

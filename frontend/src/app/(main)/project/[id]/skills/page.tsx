@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { useSettingsStore, Skill } from '@/store/settingsStore';
-import { FileText, Plus, Trash2, Save, FileCode2 } from 'lucide-react';
+import { FileText, Plus, Trash2, Save, FileCode2, Upload } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 
 export default function SkillsPage() {
@@ -18,6 +18,8 @@ export default function SkillsPage() {
   const [name, setName] = useState('');
   const [content, setContent] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load skills
   useEffect(() => {
@@ -41,6 +43,38 @@ export default function SkillsPage() {
       return newName;
     }
     return finalName;
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const fileContent = event.target?.result as string;
+      const fileName = file.name.replace(/\.md$/, '');
+      
+      const newId = `skill-${uuidv4().substring(0, 8)}`;
+      const uniqueName = getUniqueSkillName(fileName, newId);
+      
+      const newSkill: Skill = {
+        id: newId,
+        name: uniqueName,
+        content: fileContent,
+      };
+      
+      addSkill(projectId, newSkill);
+      setSkills(prev => [...prev, newSkill]);
+      setSelectedSkillId(newSkill.id);
+      setName(newSkill.name);
+      setContent(newSkill.content);
+    };
+    reader.readAsText(file);
+    
+    // Clear the input so the same file can be uploaded again if deleted
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const handleCreateSkill = () => {
@@ -128,13 +162,29 @@ Before finishing the task, verify the following:
             <FileCode2 className="w-4 h-4 text-primary" />
             Project Skills
           </h2>
-          <button 
-            onClick={handleCreateSkill}
-            className="p-1 hover:bg-muted rounded-md transition-colors text-muted-foreground hover:text-primary"
-            title="Create New Skill"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1">
+            <input 
+              type="file" 
+              accept=".md" 
+              className="hidden" 
+              ref={fileInputRef} 
+              onChange={handleFileUpload} 
+            />
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              className="p-1 hover:bg-muted rounded-md transition-colors text-muted-foreground hover:text-primary"
+              title="Import .md file"
+            >
+              <Upload className="w-4 h-4" />
+            </button>
+            <button 
+              onClick={handleCreateSkill}
+              className="p-1 hover:bg-muted rounded-md transition-colors text-muted-foreground hover:text-primary"
+              title="Create New Skill"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-2 space-y-1">

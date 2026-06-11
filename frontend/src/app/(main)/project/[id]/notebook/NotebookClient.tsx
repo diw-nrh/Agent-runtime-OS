@@ -66,6 +66,7 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
   });
 
   const [isConnectionsFullscreen, setIsConnectionsFullscreen] = useState(false);
+  const [showNewAgentConfirm, setShowNewAgentConfirm] = useState(false);
 
   // Fix hydration mismatch for Zustand persist
   const [isMounted, setIsMounted] = useState(false);
@@ -127,6 +128,14 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
     }
   }, [selectedAgentId, allNodes]);
 
+  // Sync selectedAgentId to URL so it persists on refresh
+  useEffect(() => {
+    if (selectedAgentId && typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('agentId', selectedAgentId);
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, [selectedAgentId]);
 
   const handleConnectionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const connId = e.target.value;
@@ -141,6 +150,7 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
     if (selectedConn) {
       let defaultModel = "";
       if (selectedConn.provider === "openai-compatible") defaultModel = "gpt-4o-mini";
+      if (selectedConn.provider === "local") defaultModel = "llama-3.1-8b";
       if (selectedConn.provider === "anthropic") defaultModel = "claude-3-5-sonnet-20240620";
       if (selectedConn.provider === "google") defaultModel = "gemini-1.5-pro";
       
@@ -227,9 +237,18 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
           
           {/* Item Selector */}
           <div className="w-72 bg-card border rounded-lg p-3 shadow-sm">
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-2">
-              Editing Element
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Editing Element
+              </label>
+              <button 
+                onClick={() => setShowNewAgentConfirm(true)}
+                className="p-1 hover:bg-muted rounded-md text-muted-foreground hover:text-primary transition-colors flex items-center justify-center bg-background border shadow-sm"
+                title="Create New Agent"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            </div>
             <div className="relative">
               <Bot className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <select 
@@ -244,9 +263,6 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
                     </option>
                   ))}
                   {allNodes.length === 0 && <option disabled>No agents found</option>}
-                </optgroup>
-                <optgroup label="Actions">
-                  <option value="new_agent">✨ Create New Agent...</option>
                 </optgroup>
               </select>
             </div>
@@ -701,6 +717,35 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
             <p className="text-xs text-muted-foreground mt-4 italic">
               When tasks are delegated to this agent, it will follow these instructions.
             </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmation Dialog for New Agent */}
+      <Dialog open={showNewAgentConfirm} onOpenChange={setShowNewAgentConfirm}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create New Agent?</DialogTitle>
+          </DialogHeader>
+          <div className="text-sm text-muted-foreground mb-4 mt-2">
+            Are you sure you want to create a new agent? Make sure you have saved any changes to your current agent, as unsaved progress will be lost.
+          </div>
+          <div className="flex justify-end gap-3 mt-4">
+            <button 
+              onClick={() => setShowNewAgentConfirm(false)}
+              className="px-4 py-2 border rounded-md hover:bg-muted transition-colors text-sm"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={() => {
+                setShowNewAgentConfirm(false);
+                setSelectedAgentId("new_agent");
+              }}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors text-sm"
+            >
+              Confirm & Create
+            </button>
           </div>
         </DialogContent>
       </Dialog>

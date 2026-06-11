@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type AIProviderType = 'openai-compatible' | 'anthropic' | 'google';
+export type AIProviderType = 'openai-compatible' | 'anthropic' | 'google' | 'local';
 
 export interface AIConnection {
   id: string;          // Unique ID for the connection

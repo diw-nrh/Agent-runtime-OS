@@ -84,6 +84,7 @@ export function AgentNode({ id, data }: AgentNodeProps) {
     if (selectedConn) {
       let defaultModel = '';
       if (selectedConn.provider === 'openai-compatible') defaultModel = 'gpt-4o-mini';
+      if (selectedConn.provider === 'local') defaultModel = 'llama-3.1-8b';
       if (selectedConn.provider === 'anthropic') defaultModel = 'claude-3-5-sonnet-20240620';
       if (selectedConn.provider === 'google') defaultModel = 'gemini-1.5-pro';
       
@@ -100,7 +101,7 @@ export function AgentNode({ id, data }: AgentNodeProps) {
   const handleAddTool = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const toolId = e.target.value;
     if (!toolId) return;
-    const currentTools: string[] = data.tools || [];
+    const currentTools: string[] = (data.tools as string[]) || [];
     if (!currentTools.includes(toolId)) {
       updateNodeData(id, { ...data, tools: [...currentTools, toolId] });
     }
@@ -109,14 +110,14 @@ export function AgentNode({ id, data }: AgentNodeProps) {
   };
 
   const handleRemoveTool = (toolId: string) => {
-    const currentTools: string[] = data.tools || [];
+    const currentTools: string[] = (data.tools as string[]) || [];
     updateNodeData(id, { ...data, tools: currentTools.filter(t => t !== toolId) });
   };
 
   const currentConnection = connections.find(c => c.id === data.connectionId);
   const currentProvider = currentConnection?.provider || data.provider; // Fallback to data.provider for backwards compatibility
 
-  const currentToolIds: string[] = data.tools || [];
+  const currentToolIds: string[] = (data.tools as string[]) || [];
   const availableToolsToAdd = allProjectTools.filter(t => !currentToolIds.includes(t.id));
 
   const handleDoubleClick = () => {
@@ -223,7 +224,7 @@ export function AgentNode({ id, data }: AgentNodeProps) {
             </div>
             <select
               className="w-full text-xs p-2 bg-muted border rounded-md outline-none focus:border-primary/50 nodrag"
-              value={data.connectionId || ''}
+              value={(data.connectionId as string) || ''}
               onChange={handleConnectionChange}
             >
               <option value="" disabled>Select Connection...</option>
@@ -282,7 +283,7 @@ export function AgentNode({ id, data }: AgentNodeProps) {
                   <input
                     type="number"
                     className="w-full text-xs p-1.5 bg-background border rounded-md outline-none focus:border-primary/50 nodrag"
-                    value={maxTokens}
+                    value={Number(maxTokens)}
                     onChange={(e) => setMaxTokens(parseInt(e.target.value) || 0)}
                     onBlur={handleTokensBlur}
                     min={100}
@@ -294,7 +295,7 @@ export function AgentNode({ id, data }: AgentNodeProps) {
                   <input
                     type="number"
                     className="w-full text-xs p-1.5 bg-background border rounded-md outline-none focus:border-primary/50 nodrag"
-                    value={maxIterations}
+                    value={Number(maxIterations)}
                     onChange={(e) => setMaxIterations(parseInt(e.target.value) || 0)}
                     onBlur={handleIterationsBlur}
                     min={1}
