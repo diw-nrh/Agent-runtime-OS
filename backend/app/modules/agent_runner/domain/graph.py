@@ -1,5 +1,5 @@
 from langgraph.graph import StateGraph, END
-from langgraph.prebuilt import create_react_agent
+from langgraph.prebuilt import create_react_agent, ToolNode
 from app.modules.agent_runner.domain.state import AgentState
 from app.modules.agent_runner.domain.models import AgentBlueprint
 from langchain_openai import ChatOpenAI
@@ -452,10 +452,13 @@ def build_agent_graph(blueprint: AgentBlueprint, mcp_tool_map: dict = None, task
         # Wrap llm with DeterministicToolWrapper to intercept @Alias@[MCP_ToolName]
         wrapped_llm = DeterministicToolWrapper(llm, task_id=task_id, max_tool_calls=agent.max_tool_calls)
         
+        # Wrap tools in a ToolNode with handle_tool_errors to prevent crashes when tools fail validation
+        tool_node = ToolNode(requested_tools, handle_tool_errors=True) if requested_tools else []
+        
         # create_react_agent returns a compiled graph that acts as a Node
         agent_node = create_react_agent(
             model=wrapped_llm, 
-            tools=requested_tools,
+            tools=tool_node,
             prompt=final_system_prompt
         )
         workflow.add_node(agent.id, agent_node)
