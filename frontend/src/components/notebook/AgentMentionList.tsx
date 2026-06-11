@@ -17,7 +17,7 @@ export const AgentMentionList = forwardRef<any, AgentMentionListProps>((props, r
 
   const selectItem = (index: number) => {
     const item = props.items[index];
-    if (item) {
+    if (item && item.id !== 'NONE') {
       props.command(item);
     }
   };
@@ -55,12 +55,14 @@ export const AgentMentionList = forwardRef<any, AgentMentionListProps>((props, r
   }));
 
   return (
-    <div className="bg-popover text-popover-foreground border shadow-md rounded-md overflow-hidden flex flex-col w-64 z-50">
+    <div className="bg-popover text-popover-foreground border shadow-md rounded-md overflow-hidden flex flex-col w-64 z-[99999]">
       <div className="bg-muted/50 px-3 py-1.5 border-b text-xs font-semibold text-muted-foreground">
         Select Agent to Delegate
       </div>
       <div className="p-1 max-h-64 overflow-y-auto">
-        {props.items.length ? (
+        {props.items.length > 0 && props.items[0].id === 'NONE' ? (
+          <div className="p-2 text-sm text-muted-foreground text-center">No other agents found</div>
+        ) : props.items.length ? (
           props.items.map((item, index) => (
             <button
               className={`flex items-center gap-2 px-2 py-1.5 text-sm rounded-sm text-left w-full transition-colors ${
@@ -73,9 +75,7 @@ export const AgentMentionList = forwardRef<any, AgentMentionListProps>((props, r
               <span className="truncate">{item.label}</span>
             </button>
           ))
-        ) : (
-          <div className="p-2 text-sm text-muted-foreground text-center">No agents found</div>
-        )}
+        ) : null}
       </div>
     </div>
   );

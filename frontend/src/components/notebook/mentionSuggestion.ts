@@ -3,10 +3,15 @@ import tippy, { Instance as TippyInstance } from 'tippy.js';
 import { MentionList } from './MentionList';
 import { MentionListRef } from '@/types/notebook';
 import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion';
+import { PluginKey } from '@tiptap/pm/state';
 import { useSettingsStore } from '@/store/settingsStore';
+
+export const toolSuggestionPluginKey = new PluginKey('toolSuggestion');
 
 export function createMentionSuggestion(projectId: string, onAddTool?: (toolId: string) => void) {
   return {
+    pluginKey: toolSuggestionPluginKey,
+    char: '@',
     items: ({ query }: { query: string }) => {
       // Fetch dynamic tools from Zustand store
       const projSettings = useSettingsStore.getState().getProjectSettings(projectId);

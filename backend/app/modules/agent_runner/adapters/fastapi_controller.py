@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from typing import Literal
 from app.modules.agent_runner.domain.models import AgentBlueprint
 from app.modules.agent_runner.tasks import run_agent_pipeline
+from app.core.celery_app import celery_app
 
 router = APIRouter()
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
@@ -38,6 +39,23 @@ async def compile_blueprint(blueprint: AgentBlueprint, request: Request):
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/stop/{task_id}")
+async def stop_agent_task(task_id: str):
+    """Forcefully stop a running agent task."""
+    try:
+        # Terminate the task using Celery
+        celery_app.control.revoke(task_id, terminate=True, signal="SIGKILL")
+        
+        # Publish an error/stop message to close the SSE stream on the client
+        redis_client.publish(f"agent_stream_{task_id}", json.dumps({
+            "status": "ERROR",
+            "message": "Task was manually stopped by the user."
+        }))
+        
+        return {"status": "success", "message": "Task stopped."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/stream/{task_id}")
 async def stream_agent_events(task_id: str, request: Request):

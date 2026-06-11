@@ -3,10 +3,14 @@ import tippy, { Instance as TippyInstance } from 'tippy.js';
 import { SkillMentionList } from './SkillMentionList';
 import { MentionListRef } from '@/types/notebook';
 import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion';
+import { PluginKey } from '@tiptap/pm/state';
 import { useSettingsStore } from '@/store/settingsStore';
+
+export const skillSuggestionPluginKey = new PluginKey('skillSuggestion');
 
 export function createSkillSuggestion(projectId: string) {
   return {
+    pluginKey: skillSuggestionPluginKey,
     char: '~', // Trigger character for Skills
     items: ({ query }: { query: string }) => {
       // Fetch dynamic skills from Zustand store

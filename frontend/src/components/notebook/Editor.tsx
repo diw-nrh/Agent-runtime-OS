@@ -50,6 +50,8 @@ export function NotebookEditor({ projectId, initialContent, onChange, onAddTool,
     editorProps: {
       attributes: {
         class: `outline-none ${minimal ? 'min-h-[80px] text-xs leading-normal [&>p]:mb-2' : 'min-h-[400px] text-base leading-relaxed [&>p]:mb-4'} [&>strong]:font-bold [&>h1]:text-2xl [&>h1]:font-bold [&>h1]:mb-4 [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>code]:bg-muted [&>code]:px-1 [&>code]:rounded`,
+        spellcheck: 'true',
+        'data-gramm': 'true',
       },
     },
     onUpdate: ({ editor }) => {

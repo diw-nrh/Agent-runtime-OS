@@ -2,15 +2,19 @@ import { ReactRenderer } from '@tiptap/react';
 import tippy, { Instance as TippyInstance } from 'tippy.js';
 import { AgentMentionList } from './AgentMentionList';
 import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion';
+import { PluginKey } from '@tiptap/pm/state';
+
+export const agentSuggestionPluginKey = new PluginKey('agentSuggestion');
 
 export function createAgentSuggestion(
   availableAgents: any[], 
   onAddAgentConnection?: (targetId: string) => void
 ) {
   return {
+    pluginKey: agentSuggestionPluginKey,
     char: '#',
     items: ({ query }: { query: string }) => {
-      return availableAgents
+      const filtered = availableAgents
         .filter((agent) => (agent.data?.label || '').toLowerCase().includes(query.toLowerCase()))
         .map(agent => ({
           id: agent.id,
@@ -18,6 +22,11 @@ export function createAgentSuggestion(
           system_prompt: agent.data?.system_prompt || ''
         }))
         .slice(0, 5);
+        
+      if (filtered.length === 0) {
+        return [{ id: 'NONE', label: 'No agents available', system_prompt: '' }];
+      }
+      return filtered;
     },
 
     command: ({ editor, range, props }: any) => {

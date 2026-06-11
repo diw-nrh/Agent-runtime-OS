@@ -261,5 +261,17 @@ export function useDeployBlueprint() {
     setLogs([]);
   };
 
-  return { deploy, saveBlueprint, isDeploying, taskId, logs, closeConsole };
+  const stopDeployment = async (taskId: string) => {
+    try {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+      await fetch(`${backendUrl}/api/agent/stop/${taskId}`, { method: 'POST' });
+      // Logic to close EventSource would be here if it's stored in a ref
+      setTaskId(null);
+      setLogs(prev => [...prev, {status: 'INFO', message: 'Deployment stopped.', time: new Date().toLocaleTimeString()}]);
+    } catch (err) {
+      console.error('Failed to stop deployment', err);
+    }
+  };
+
+  return { deploy, saveBlueprint, stopDeployment, isDeploying, taskId, logs, closeConsole };
 }

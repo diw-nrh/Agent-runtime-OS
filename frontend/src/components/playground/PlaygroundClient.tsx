@@ -220,6 +220,16 @@ export function PlaygroundClient({ blueprint }: PlaygroundClientProps) {
     setIsStreaming(false);
   };
 
+  const handleStop = async () => {
+    if (!currentTaskId) return;
+    try {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+      await fetch(`${backendUrl}/api/agent/stop/${currentTaskId}`, { method: 'POST' });
+    } catch (err) {
+      console.error('Failed to stop task:', err);
+    }
+  };
+
   return (
     <div className="flex h-full w-full bg-background overflow-hidden">
       {/* Sidebar for Agents */}
@@ -299,13 +309,23 @@ export function PlaygroundClient({ blueprint }: PlaygroundClientProps) {
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                 disabled={isStreaming}
               />
-              <button 
-                onClick={handleSend}
-                disabled={!input.trim() || isStreaming}
-                className="absolute right-2 p-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-all"
-              >
-                {isStreaming ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-              </button>
+              {isStreaming ? (
+                <button 
+                  onClick={handleStop}
+                  className="absolute right-2 p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all flex items-center justify-center gap-1"
+                  title="Stop Execution"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/></svg>
+                </button>
+              ) : (
+                <button 
+                  onClick={handleSend}
+                  disabled={!input.trim()}
+                  className="absolute right-2 p-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-all"
+                >
+                  <Send className="w-5 h-5" />
+                </button>
+              )}
             </div>
           </div>
         </div>

@@ -52,14 +52,14 @@ export const SkillMentionList = forwardRef<MentionListRef, SkillMentionListProps
 
   if (!props.items.length) {
     return (
-      <div className="bg-popover text-popover-foreground rounded-md shadow-md border p-2 text-sm">
+      <div className="bg-popover text-popover-foreground rounded-md shadow-md border p-2 text-sm z-[99999]">
         No skills found
       </div>
     );
   }
 
   return (
-    <div className="bg-popover text-popover-foreground rounded-md shadow-md border overflow-hidden p-1 min-w-[200px]">
+    <div className="bg-popover text-popover-foreground rounded-md shadow-md border overflow-hidden p-1 min-w-[200px] z-[99999]">
       {props.items.map((item, index) => (
         <button
           key={item.id}

@@ -45,7 +45,7 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>((props, 
   }));
 
   return (
-    <div className="bg-popover text-popover-foreground border shadow-md rounded-md overflow-hidden flex flex-col p-1 w-48 z-50">
+    <div className="bg-popover text-popover-foreground border shadow-md rounded-md overflow-hidden flex flex-col p-1 w-48 z-[99999]">
       {props.items.length ? (
         props.items.map((item, index) => (
           <button
