@@ -11,7 +11,7 @@ from app.modules.mcp_gateway.tools import TOOL_REGISTRY_MAP
 from langgraph.types import Command
 from langchain_core.messages import SystemMessage
 
-def create_handoff_tool(target_agent_id: str, target_agent_name: str, target_agent_system: str):
+def create_handoff_tool(target_agent_id: str, target_agent_name: str, target_agent_system: str, target_agent_caps: str = ""):
     safe_id = target_agent_id.replace("-", "_")
     tool_name = f"transfer_to_{safe_id}"
     
@@ -20,6 +20,7 @@ def create_handoff_tool(target_agent_id: str, target_agent_name: str, target_age
         f"""
         Call this tool to hand off the task to {target_agent_name}.
         Their system prompt / role is: {target_agent_system[:200]}...
+        {target_agent_caps}
         Provide a clear `task_instruction` of what they need to do.
         """
         return Command(
@@ -142,10 +143,28 @@ def build_agent_graph(blueprint: AgentBlueprint, mcp_tool_map: dict = None):
             if target_id in agent_map:
                 target_agent = agent_map[target_id]
                         
+                # Extract tools and sub-agents of the target agent to inform the parent agent
+                target_tool_names = []
+                for t in target_agent.tools:
+                    if isinstance(t, dict):
+                        target_tool_names.append(t.get("name") or t.get("id"))
+                    elif isinstance(t, str):
+                        target_tool_names.append(t)
+                        
+                target_sub_agents = [agent_map[sub_id].name for sub_id in delegate_edges.get(target_agent.id, []) if sub_id in agent_map]
+                
+                caps = []
+                if target_tool_names:
+                    caps.append(f"Tools: {', '.join(target_tool_names)}")
+                if target_sub_agents:
+                    caps.append(f"Sub-agents: {', '.join(target_sub_agents)}")
+                caps_str = f"Capabilities -> {'; '.join(caps)}" if caps else ""
+
                 handoff = create_handoff_tool(
                     target_agent.id, 
                     target_agent.name, 
-                    target_agent.system_prompt or "Helpful Assistant"
+                    target_agent.system_prompt or "Helpful Assistant",
+                    caps_str
                 )
                 requested_tools.append(handoff)
         
@@ -172,11 +191,28 @@ def build_agent_graph(blueprint: AgentBlueprint, mcp_tool_map: dict = None):
                     sys_snippet = (sys_desc[:150] + "...") if len(sys_desc) > 150 else sys_desc
                     sys_snippet = sys_snippet.replace('\n', ' ')
                     
+                    # Extract tools and sub-agents of the target agent to inform the parent agent
+                    target_tool_names = []
+                    for t in target_agent.tools:
+                        if isinstance(t, dict):
+                            target_tool_names.append(t.get("name") or t.get("id"))
+                        elif isinstance(t, str):
+                            target_tool_names.append(t)
+                            
+                    target_sub_agents = [agent_map[sub_id].name for sub_id in delegate_edges.get(target_agent.id, []) if sub_id in agent_map]
+                    
+                    caps = []
+                    if target_tool_names:
+                        caps.append(f"Tools: {', '.join(target_tool_names)}")
+                    if target_sub_agents:
+                        caps.append(f"Sub-agents: {', '.join(target_sub_agents)}")
+                    caps_str = f" [{'; '.join(caps)}]" if caps else ""
+
                     if mode == "delegate":
                         safe_id = target_agent.id.replace("-", "_")
-                        final_system_prompt += f"\n- **{target_agent.name}** (Tool: `transfer_to_{safe_id}`): {sys_snippet}"
+                        final_system_prompt += f"\n- **{target_agent.name}**{caps_str} (Tool: `transfer_to_{safe_id}`): {sys_snippet}"
                     else:
-                        final_system_prompt += f"\n- **{target_agent.name}** (Sequential Handoff): {sys_snippet}"
+                        final_system_prompt += f"\n- **{target_agent.name}**{caps_str} (Sequential Handoff): {sys_snippet}"
         
         # create_react_agent returns a compiled graph that acts as a Node
         agent_node = create_react_agent(
