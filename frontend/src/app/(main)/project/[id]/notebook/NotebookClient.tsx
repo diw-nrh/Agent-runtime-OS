@@ -253,7 +253,7 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Agent Note</h1>
             <p className="text-muted-foreground text-sm mt-1">
-              Press &apos;/&apos; for commands or type &apos;@&apos; to mention and attach your AI Tools.
+              Press &apos;/&apos; for commands or type &apos;@&apos; to attach Tools. Use <code className="px-1 py-0.5 bg-muted rounded text-xs font-mono">@alias [Agent]</code> to hand off tasks to another Agent.
             </p>
           </div>
           
