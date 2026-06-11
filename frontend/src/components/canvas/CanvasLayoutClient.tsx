@@ -79,6 +79,7 @@ export function CanvasLayoutClient({ blueprintId, projectName = "Untitled Projec
           <div 
             className="border rounded-lg p-3 bg-background flex items-center gap-3 cursor-grab hover:border-primary hover:shadow-sm transition-all active:cursor-grabbing"
             onDragStart={(event) => onDragStart(event, 'agent')}
+            onClick={() => window.dispatchEvent(new CustomEvent('addNode', { detail: { type: 'agent' } }))}
             draggable
           >
             <div className="bg-primary/10 text-primary p-2 rounded-md">
@@ -94,6 +95,7 @@ export function CanvasLayoutClient({ blueprintId, projectName = "Untitled Projec
           <div 
             className="border rounded-lg p-3 bg-background flex items-center gap-3 cursor-grab hover:border-blue-500/50 hover:shadow-sm transition-all active:cursor-grabbing"
             onDragStart={(event) => onDragStart(event, 'io_node')}
+            onClick={() => window.dispatchEvent(new CustomEvent('addNode', { detail: { type: 'io_node' } }))}
             draggable
           >
             <div className="bg-blue-500/10 text-blue-500 p-2 rounded-md">

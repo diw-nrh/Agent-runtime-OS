@@ -161,14 +161,45 @@ export function CanvasEditor({
   }, []);
 
   const getUniqueAgentName = (currentNodes: Node[]) => {
-    let i = 1;
-    let newLabel = `New Agent`;
-    while (currentNodes.some(n => n.type === 'agent' && n.data.label === newLabel)) {
-      i++;
-      newLabel = `New Agent ${i}`;
+    let baseName = 'Agent';
+    let counter = 1;
+    let name = `${baseName} ${counter}`;
+    while (currentNodes.some(n => n.data.label === name)) {
+      counter++;
+      name = `${baseName} ${counter}`;
     }
-    return newLabel;
+    return name;
   };
+
+  useEffect(() => {
+    const handleAddNode = (e: CustomEvent) => {
+      const type = e.detail.type;
+      
+      setNodes((nds) => {
+        // Find center position based on current nodes bounding box, or just center of screen
+        // If there are no nodes, center is 0,0
+        // We'll just place them near the center of the viewport.
+        const position = { 
+          x: Math.random() * 100 - 50, 
+          y: Math.random() * 100 - 50 
+        };
+
+        const newNode = {
+          id: `${type}-${Date.now()}`,
+          type,
+          position,
+          data: type === 'agent' 
+            ? { label: getUniqueAgentName(nds), model: 'openai/gpt-4o-mini', system_prompt: 'You are a helpful assistant.' }
+            : type === 'io_node' ? { label: 'System IO' } 
+            : { content: '' },
+        };
+        return nds.concat(newNode);
+      });
+    };
+
+    window.addEventListener('addNode', handleAddNode as EventListener);
+    return () => window.removeEventListener('addNode', handleAddNode as EventListener);
+  }, [setNodes]);
 
   const onDrop = useCallback(
     (event: React.DragEvent) => {
@@ -226,23 +257,6 @@ export function CanvasEditor({
         <Background variant={BackgroundVariant.Dots} gap={16} size={1.5} color="currentColor" className="opacity-10 text-muted-foreground" />
         
         <Panel position="top-right" className="m-4 flex gap-2">
-          <button 
-            onClick={() => {
-              setNodes((nds) => {
-                const newNode = {
-                  id: `agent-${Date.now()}`,
-                  type: 'agent',
-                  position: { x: window.innerWidth / 2 - 150, y: window.innerHeight / 2 - 100 },
-                  data: { label: getUniqueAgentName(nds), model: '', system_prompt: 'You are a helpful assistant.' },
-                };
-                return nds.concat(newNode);
-              });
-            }}
-            className="bg-background text-foreground flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium shadow-md hover:bg-muted transition-all active:scale-95 border"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-plus"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-            Add Agent
-          </button>
           <button 
             onClick={() => saveBlueprint(nodes, edges, blueprintId, projectName, projectDescription)}
             disabled={isDeploying}

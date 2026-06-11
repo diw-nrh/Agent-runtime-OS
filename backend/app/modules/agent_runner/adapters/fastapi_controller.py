@@ -133,7 +133,11 @@ async def stream_agent_events(task_id: str, request: Request):
                     pass
                 
                 if res.state == 'SUCCESS':
-                    yield {"data": json.dumps({"status": "COMPLETED", "message": "Task finished.", "data": {"reply": res.result.get("reply", "") if isinstance(res.result, dict) else str(res.result)}})}
+                    res_data = res.result if isinstance(res.result, dict) else {}
+                    if res_data.get("status") == "error":
+                        yield {"data": json.dumps({"status": "ERROR", "message": res_data.get("message", "Unknown error")})}
+                    else:
+                        yield {"data": json.dumps({"status": "COMPLETED", "message": "Task finished.", "data": {"reply": res_data.get("reply", "") if isinstance(res.result, dict) else str(res.result)}})}
                 else:
                     yield {"data": json.dumps({"status": "ERROR", "message": "Task failed."})}
                 await asyncio.sleep(1.0)

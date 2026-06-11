@@ -2,18 +2,43 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { ChatMessage, PlaygroundAgent } from '@/types/playground';
-import { Send, Bot, User, Settings2, Loader2, RefreshCw } from 'lucide-react';
+import { Send, Bot, User, Settings2, Loader2, RefreshCw, ArrowRightLeft } from 'lucide-react';
 import { useSettingsStore } from '@/store/settingsStore';
 import DebuggerPanel from '@/components/canvas/DebuggerPanel';
 import { StreamLog } from '@/hooks/useDeployBlueprint';
 
+interface BlueprintAgentData {
+  id: string;
+  name: string;
+  [key: string]: unknown;
+}
+
+interface BlueprintNodeData {
+  id: string;
+  type?: string;
+  label?: string;
+  data?: {
+    label?: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+interface PlaygroundBlueprint {
+  id: string;
+  name?: string;
+  agents: BlueprintAgentData[];
+  nodes: BlueprintNodeData[];
+  [key: string]: unknown;
+}
+
 interface PlaygroundClientProps {
-  blueprint: any;
+  blueprint: PlaygroundBlueprint;
 }
 
 export function PlaygroundClient({ blueprint }: PlaygroundClientProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: '1', role: 'agent', content: `Hello! I am ready to assist you. My active agents are: ${blueprint.agents.map((a: any) => a.name).join(', ') || 'None'}. What would you like to build today?`, timestamp: new Date() }
+    { id: '1', role: 'agent', content: `Hello! I am ready to assist you. My active agents are: ${blueprint.agents.map(a => a.name).join(', ') || 'None'}. What would you like to build today?`, timestamp: new Date() }
   ]);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -23,11 +48,27 @@ export function PlaygroundClient({ blueprint }: PlaygroundClientProps) {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
-  const activeAgents: PlaygroundAgent[] = blueprint.agents.map((a: any) => ({
+  const ioNodes: PlaygroundAgent[] = (blueprint.nodes || [])
+    .filter(n => n.type === 'io_node')
+    .map(n => ({
+      id: n.id,
+      name: n.data?.label || n.label || 'System IO',
+      status: 'online',
+      isSystemIO: true
+    }));
+
+  const standardAgents: PlaygroundAgent[] = (blueprint.agents || []).map(a => ({
     id: a.id,
     name: a.name,
     status: 'online'
   }));
+
+  const allAgents: PlaygroundAgent[] = [...ioNodes, ...standardAgents];
+  
+  // Deduplicate by ID just in case old saved blueprints contain IO nodes in the agents array
+  const activeAgents: PlaygroundAgent[] = Array.from(
+    new Map(allAgents.map(a => [a.id, a])).values()
+  );
 
   const [selectedAgent, setSelectedAgent] = useState(activeAgents[0]?.id || '');
 
@@ -197,17 +238,17 @@ export function PlaygroundClient({ blueprint }: PlaygroundClientProps) {
             <button 
               key={agent.id}
               onClick={() => setSelectedAgent(agent.id)}
-              className={`w-full flex items-center gap-3 p-3 rounded-md transition-colors text-left ${selectedAgent === agent.id ? 'bg-primary/10 border-primary/20 border' : 'hover:bg-muted border border-transparent'}`}
+              className={`w-full flex items-center gap-3 p-3 rounded-md transition-colors text-left ${selectedAgent === agent.id ? (agent.isSystemIO ? 'bg-blue-500/10 border-blue-500/20 border' : 'bg-primary/10 border-primary/20 border') : 'hover:bg-muted border border-transparent'}`}
             >
               <div className="relative">
-                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
-                  {agent.name.charAt(0)}
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${agent.isSystemIO ? 'bg-blue-500/20 text-blue-500' : 'bg-primary/20 text-primary'}`}>
+                  {agent.isSystemIO ? <ArrowRightLeft className="w-4 h-4" /> : agent.name.charAt(0)}
                 </div>
                 <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-background ${agent.status === 'online' ? 'bg-green-500' : 'bg-gray-400'}`}></div>
               </div>
               <div className="flex-1 overflow-hidden">
                 <p className="text-sm font-medium truncate">{agent.name}</p>
-                <p className="text-xs text-muted-foreground capitalize">{agent.status}</p>
+                <p className="text-xs text-muted-foreground capitalize">{agent.status === 'online' && agent.isSystemIO ? 'Gateway' : agent.status}</p>
               </div>
             </button>
           ))}

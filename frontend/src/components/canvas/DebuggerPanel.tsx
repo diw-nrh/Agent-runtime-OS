@@ -18,7 +18,8 @@ function TraceItem({ trace, renderIcon, formatContent, agents, isDeveloperMode, 
   const type = isApproval ? 'APPROVAL' : (trace.data?.type || 'MESSAGE');
   const rawAgentId = trace.data?.agentId || (isApproval ? 'Security' : 'Agent');
   const agent = agents?.find(a => a.id === rawAgentId);
-  const agentName = agent ? `${agent.id} ${agent.name}` : (rawAgentId.length > 8 ? 'Agent' : rawAgentId);
+  const resolvedName = agent ? (agent.name || (agent as any).data?.label || (agent as any).label || 'Agent') : null;
+  const agentName = resolvedName ? `${agent!.id} ${resolvedName}` : (rawAgentId.length > 8 ? 'Agent' : rawAgentId);
   
   const rawContent = JSON.stringify(trace.data, null, 2);
 

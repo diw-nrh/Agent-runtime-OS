@@ -31,11 +31,25 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
   const [allNodes, setAllNodes] = useState<Node[]>(initialNodes);
   const [allEdges, setAllEdges] = useState<Edge[]>(initialEdges);
   
-  const [selectedAgentId, setSelectedAgentId] = useState<string>(
-    requestedAgentId && initialNodes.some(n => n.id === requestedAgentId) 
-      ? requestedAgentId 
-      : (initialNodes.length > 0 ? initialNodes[0].id : "new_agent")
-  );
+  const [selectedAgentId, setSelectedAgentId] = useState<string>(() => {
+    if (requestedAgentId && initialNodes.some(n => n.id === requestedAgentId)) {
+      return requestedAgentId;
+    }
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(`notebook_last_agent_${projectId}`);
+      if (saved && initialNodes.some(n => n.id === saved)) {
+        return saved;
+      }
+    }
+    return initialNodes.length > 0 ? initialNodes[0].id : "new_agent";
+  });
+
+  // Save selected agent to localStorage whenever it changes
+  useEffect(() => {
+    if (selectedAgentId && selectedAgentId !== "new_agent") {
+      localStorage.setItem(`notebook_last_agent_${projectId}`, selectedAgentId);
+    }
+  }, [selectedAgentId, projectId]);
 
   // Form State
   const [label, setLabel] = useState("");
@@ -359,7 +373,7 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
                     };
                     
                     setAllEdges(prev => [...prev, newEdge]);
-                    targetSelect.value = "";
+                    setNewConnTarget("");
                   }}
                   className="bg-primary text-primary-foreground px-5 py-2 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
                 >

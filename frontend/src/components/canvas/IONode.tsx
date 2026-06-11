@@ -4,14 +4,26 @@ import { MessageSquare, ArrowRightToLine, PlayCircle } from 'lucide-react';
 import { AgentNodeProps } from '@/types/canvas';
 
 export function IONode({ id, data, selected }: AgentNodeProps & { selected?: boolean }) {
-  const { updateNodeData } = useReactFlow();
+  const { updateNodeData, getNodes } = useReactFlow();
   const [localLabel, setLocalLabel] = useState(data.label || 'System IO');
 
   useEffect(() => { setLocalLabel(data.label || 'System IO'); }, [data.label]);
 
   const handleLabelBlur = () => {
-    const finalLabel = localLabel.trim() || 'System IO';
-    setLocalLabel(finalLabel);
+    let finalLabel = localLabel.trim() || 'System IO';
+    const otherNodes = getNodes().filter(n => n.id !== id);
+    
+    if (otherNodes.some(n => n.data.label === finalLabel)) {
+      let counter = 1;
+      let newLabel = `${finalLabel} (${counter})`;
+      while (otherNodes.some(n => n.data.label === newLabel)) {
+        counter++;
+        newLabel = `${finalLabel} (${counter})`;
+      }
+      finalLabel = newLabel;
+      setLocalLabel(finalLabel);
+    }
+    
     updateNodeData(id, { ...data, label: finalLabel });
   };
 

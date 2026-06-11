@@ -62,6 +62,7 @@ export function useDeployBlueprint() {
       
       // Validate that all agents have a connection selected
       for (const n of nodes) {
+        if (n.type === 'io_node') continue;
         if (!n.data.connectionId) {
           throw new Error(`Agent "${n.data.label || 'Unknown Agent'}" is missing an AI Connection. Please select one in the Canvas.`);
         }
@@ -77,7 +78,7 @@ export function useDeployBlueprint() {
         description: description || "A custom AI agent workflow blueprint.",
         version: "1.0.0",
         executionSettings: settings.executionSettings,
-        agents: nodes.map(n => {
+        agents: nodes.filter(n => n.type !== 'io_node').map(n => {
           // Find the selected connection for this node
           const conn = connections.find(c => c.id === n.data.connectionId);
           

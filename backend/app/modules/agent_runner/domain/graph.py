@@ -5,33 +5,33 @@ from app.modules.agent_runner.domain.models import AgentBlueprint
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.tools import tool
+from langchain_core.tools import tool, InjectedToolCallId
 from app.modules.mcp_gateway.tools import TOOL_REGISTRY_MAP
+from typing import Annotated
 
 from langgraph.types import Command
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import SystemMessage, ToolMessage
 
 def create_handoff_tool(target_agent_id: str, target_agent_name: str, target_agent_system: str, target_agent_caps: str = ""):
     safe_id = target_agent_id.replace("-", "_")
     tool_name = f"transfer_to_{safe_id}"
     
     @tool(tool_name)
-    def handoff_tool(task_instruction: str):
-        f"""
-        Call this tool to hand off the task to {target_agent_name}.
-        Their system prompt / role is: {target_agent_system[:200]}...
-        {target_agent_caps}
-        Provide a clear `task_instruction` of what they need to do.
-        """
+    def handoff_tool(task_instruction: str, tool_call_id: Annotated[str, InjectedToolCallId]):
+        """Call this tool to hand off the task to another agent. Provide a clear task_instruction."""
         return Command(
             goto=target_agent_id,
+            graph=Command.PARENT,
             update={
                 "messages": [
+                    ToolMessage(content=f"Successfully transferred to {target_agent_name}", tool_call_id=tool_call_id),
                     SystemMessage(content=f"You have been handed control of the task by the previous agent. Instructions: {task_instruction}")
                 ],
                 "active_agent": target_agent_id
             }
         )
+    
+    handoff_tool.description = f"Call this tool to hand off the task to {target_agent_name}. Their system prompt / role is: {target_agent_system[:200]}... {target_agent_caps} Provide a clear `task_instruction` of what they need to do."
     
     return handoff_tool
 

@@ -41,7 +41,7 @@ export function AgentNode({ id, data, selected }: AgentNodeProps & { selected?: 
 
   const handleLabelBlur = () => {
     let finalLabel = localLabel.trim() || 'Unnamed Agent';
-    const otherNodes = getNodes().filter(n => n.id !== id && n.type === 'agent');
+    const otherNodes = getNodes().filter(n => n.id !== id);
     
     if (otherNodes.some(n => n.data.label === finalLabel)) {
       let counter = 1;
