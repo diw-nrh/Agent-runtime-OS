@@ -10,7 +10,119 @@ from app.modules.mcp_gateway.tools import TOOL_REGISTRY_MAP
 from typing import Annotated
 
 from langgraph.types import Command
-from langchain_core.messages import SystemMessage, ToolMessage
+from langchain_core.messages import SystemMessage, ToolMessage, AIMessage, HumanMessage
+from langchain_core.runnables import Runnable
+import re
+import json
+import uuid
+
+class DeterministicToolWrapper(Runnable):
+    """
+    A wrapper around the ChatModel that enforces deterministic tool execution.
+    Scans the system prompt for `@Alias[MCP_ToolName]`.
+    If the AI's response starts with `@Alias` or `[MCP_ToolName]`, 
+    it hijacks the response, strips out the alias/tool name, and forces 
+    a Tool Call execution with the remaining text as the argument.
+    """
+    def __init__(self, llm):
+        self.bound = llm
+        
+    def invoke(self, input, config=None, **kwargs):
+        return self.bound.invoke(input, config=config, **kwargs)
+        
+    async def ainvoke(self, inputs, config=None, **kwargs):
+        return await self._ainvoke_with_fallback(inputs, config, **kwargs)
+        
+    async def _ainvoke_with_fallback(self, inputs, config=None, **invoke_kwargs):
+        target_tool_name = None
+        alias_used = None
+        tool_already_called = False
+        
+        messages = inputs.get("messages", []) if isinstance(inputs, dict) else inputs
+        
+        if messages:
+            for msg in messages:
+                msg_type = msg.get("type", "") if isinstance(msg, dict) else getattr(msg, "type", "")
+                msg_class = "" if isinstance(msg, dict) else msg.__class__.__name__
+                
+                if msg_type == "system" or msg_class == "SystemMessage":
+                    content = msg.get("content", "") if isinstance(msg, dict) else getattr(msg, "content", "")
+                    if not isinstance(content, str):
+                        content = str(content)
+                    
+                    # Use a robust regex that ignores HTML tags and spaces, and makes @alias optional
+                    match = re.search(r'(?:@(\w+)\s*(?:<[^>]+>)*\s*)?\[(\w+)\]', content)
+                    if match:
+                        alias_used = match.group(1)
+                        target_tool_name = match.group(2)
+                
+                elif msg_type == "human" or msg_class == "HumanMessage":
+                    tool_already_called = False
+                    
+                elif msg_type == "ai" or msg_class == "AIMessage":
+                    tool_calls = msg.get("tool_calls", []) if isinstance(msg, dict) else getattr(msg, "tool_calls", [])
+                    for tc in tool_calls:
+                        if tc.get("name") == target_tool_name:
+                            tool_already_called = True
+
+        try:
+            result = await self.bound.ainvoke(inputs, config, **invoke_kwargs)
+        except Exception as e:
+            error_msg = str(e)
+            if "tool_use_failed" in error_msg or "<function=" in error_msg:
+                xml_match = re.search(r'<function=([^>]+)>(.*?)(?:</function>)?', error_msg, re.DOTALL)
+                if xml_match:
+                    fallback_tool_name = xml_match.group(1).strip()
+                    args_str = xml_match.group(2).strip()
+                    try:
+                        fallback_args = json.loads(args_str)
+                    except json.JSONDecodeError:
+                        fallback_args = {}
+                    return AIMessage(
+                        content="",
+                        tool_calls=[{"name": fallback_tool_name, "args": fallback_args, "id": f"call_{uuid.uuid4().hex[:8]}"}]
+                    )
+            raise e
+        
+        if target_tool_name and not tool_already_called and not result.tool_calls and isinstance(result.content, str):
+            content = result.content.strip()
+            # Check if AI output starts with @alias or [tool]
+            if (alias_used and content.startswith(f"@{alias_used}")) or content.startswith(f"[{target_tool_name}]") or len(content) > 0:
+                if alias_used:
+                    raw_arg = re.sub(rf'@{alias_used}\s*(?:<[^>]+>)*\s*(?:\[{target_tool_name}\])?', '', content)
+                else:
+                    raw_arg = content
+                raw_arg = re.sub(rf'\[{target_tool_name}\]', '', raw_arg).strip()
+                
+                if not raw_arg and isinstance(messages, list):
+                    for m in reversed(messages):
+                        msg_type = m.get("type", "") if isinstance(m, dict) else getattr(m, "type", "")
+                        msg_class = "" if isinstance(m, dict) else m.__class__.__name__
+                        if msg_type == "human" or msg_class == "HumanMessage":
+                            raw_arg = m.get("content", "") if isinstance(m, dict) else getattr(m, "content", "")
+                            if not isinstance(raw_arg, str):
+                                if isinstance(raw_arg, list):
+                                    raw_arg = " ".join([str(x.get("text", "")) if isinstance(x, dict) else str(x) for x in raw_arg])
+                                else:
+                                    raw_arg = str(raw_arg)
+                            raw_arg = raw_arg.strip()
+                            break
+                
+                # Fetch tools dynamically from the bound llm or graph
+                # But since we just want the first param, let's hardcode it to 'message' or 'task_instruction'
+                args = {"message": raw_arg}
+                
+                return AIMessage(
+                    content="",
+                    tool_calls=[{
+                        "name": target_tool_name,
+                        "args": args,
+                        "id": f"call_{uuid.uuid4().hex[:8]}"
+                    }],
+                    id=getattr(result, 'id', None),
+                    response_metadata=getattr(result, 'response_metadata', {})
+                )
+        return result
 
 def create_handoff_tool(target_agent_id: str, target_agent_name: str, target_agent_system: str, target_agent_caps: str = ""):
     safe_id = target_agent_id.replace("-", "_")
@@ -232,9 +344,12 @@ def build_agent_graph(blueprint: AgentBlueprint, mcp_tool_map: dict = None):
                     else:
                         final_system_prompt += f"\n- **{target_agent.name}**{caps_str} (Sequential Handoff): {sys_snippet}"
         
+        # Wrap llm with DeterministicToolWrapper to intercept @Alias@[MCP_ToolName]
+        wrapped_llm = DeterministicToolWrapper(llm)
+        
         # create_react_agent returns a compiled graph that acts as a Node
         agent_node = create_react_agent(
-            model=llm, 
+            model=wrapped_llm, 
             tools=requested_tools,
             prompt=final_system_prompt
         )

@@ -12,6 +12,23 @@ import { createSkillSuggestion } from './skillSuggestion';
 const AgentMention = Mention.extend({ name: 'agentMention' });
 const SkillMention = Mention.extend({ name: 'skillMention' });
 
+import { mergeAttributes } from '@tiptap/core';
+import { createForceToolSuggestion } from './forceToolSuggestion';
+
+const ForceToolMention = Mention.extend({ 
+  name: 'forceToolMention',
+  renderHTML({ node, HTMLAttributes }) {
+    return [
+      'span',
+      mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
+        'data-type': this.name,
+        'data-id': node.attrs.id,
+      }),
+      `[${node.attrs.label ?? node.attrs.id}]`,
+    ]
+  },
+});
+
 interface NotebookEditorProps {
   projectId: string;
   initialContent?: string;
@@ -38,6 +55,12 @@ export function NotebookEditor({ projectId, initialContent, onChange, onAddTool,
       AgentMention.configure({
         suggestion: createAgentSuggestion(availableAgents, onAddAgentConnection),
       }),
+      ForceToolMention.configure({
+        suggestion: createForceToolSuggestion(projectId, onAddTool),
+        HTMLAttributes: {
+          class: 'bg-red-500/20 text-red-600 px-1 rounded-md font-bold cursor-pointer border border-red-500/30',
+        },
+      }),
       SkillMention.configure({
         suggestion: createSkillSuggestion(projectId),
         HTMLAttributes: {
@@ -46,7 +69,7 @@ export function NotebookEditor({ projectId, initialContent, onChange, onAddTool,
       }),
     ],
     immediatelyRender: false,
-    content: initialContent || (minimal ? '' : '<p>Start writing your <strong>Agent System Prompt</strong> here...</p><p>Type <code>@</code> to attach an MCP Tool, <code>#</code> to mention an Agent, or <code>~</code> to add a Skill.</p>'),
+    content: initialContent || (minimal ? '' : '<p>Start writing your <strong>Agent System Prompt</strong> here...</p><p>Type <code>@</code> to attach an MCP Tool, <code>#</code> to mention an Agent, <code>~</code> to add a Skill, or <code>[</code> to force tool execution.</p>'),
     editorProps: {
       attributes: {
         class: `outline-none ${minimal ? 'min-h-[80px] text-xs leading-normal [&>p]:mb-2' : 'min-h-[400px] text-base leading-relaxed [&>p]:mb-4'} [&>strong]:font-bold [&>h1]:text-2xl [&>h1]:font-bold [&>h1]:mb-4 [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>code]:bg-muted [&>code]:px-1 [&>code]:rounded`,

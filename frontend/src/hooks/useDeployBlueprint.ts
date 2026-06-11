@@ -85,7 +85,13 @@ export function useDeployBlueprint() {
           return {
             id: n.id,
             name: n.data.label || 'Unknown Agent',
-            systemPrompt: n.data.system_prompt || 'You are a helpful assistant generated from canvas.',
+            systemPrompt: n.data.system_prompt 
+              ? (n.data.system_prompt as string)
+                  .replace(/<\/(p|div|h[1-6])>/gi, '\n')
+                  .replace(/<br\s*\/?>/gi, '\n')
+                  .replace(/<[^>]*>?/gm, '')
+                  .replace(/\n\s*\n/g, '\n')
+              : 'You are a helpful assistant generated from canvas.',
             llmProvider: (conn?.provider || n.data.provider) === 'local' ? 'openai-compatible' : (conn?.provider || n.data.provider || 'openai-compatible'),
             modelId: n.data.model || '',
             tools: (n.data.tools || []).map((toolId: string) => {
@@ -172,7 +178,13 @@ export function useDeployBlueprint() {
           return {
             id: n.id,
             name: n.data.label || 'Unknown Agent',
-            systemPrompt: n.data.system_prompt || 'You are a helpful assistant generated from canvas.',
+            systemPrompt: n.data.system_prompt 
+              ? (n.data.system_prompt as string)
+                  .replace(/<\/(p|div|h[1-6])>/gi, '\n')
+                  .replace(/<br\s*\/?>/gi, '\n')
+                  .replace(/<[^>]*>?/gm, '')
+                  .replace(/\n\s*\n/g, '\n')
+              : 'You are a helpful assistant generated from canvas.',
             llmProvider: (conn?.provider || n.data.provider) === 'local' ? 'openai-compatible' : (conn?.provider || n.data.provider || 'openai-compatible'),
             modelId: n.data.model || '',
             tools: (n.data.tools || []).map((toolId: string) => {
