@@ -13,6 +13,8 @@ from app.modules.agent_runner.application.ports.telemetry_port import TelemetryP
 from app.modules.agent_runner.infrastructure.wrappers.deterministic_tool_wrapper import DeterministicToolWrapper
 from app.modules.mcp_gateway.tools import TOOL_REGISTRY_MAP
 
+from app.modules.agent_runner.infrastructure.wrappers.rate_limited_tool_wrapper import create_rate_limited_tool
+
 def create_handoff_tool(target_agent_id: str, target_agent_name: str, target_agent_system: str, target_agent_caps: str = ""):
     safe_id = target_agent_id.replace("-", "_")
     tool_name = f"transfer_to_{safe_id}"
@@ -161,6 +163,9 @@ def build_agent_graph(
                 )
                 requested_tools.append(handoff)
         
+        # Apply Rate Limiter Circuit Breaker to all tools
+        rate_limited_tools = [create_rate_limited_tool(t, agent.max_tool_calls) for t in requested_tools]
+        
         # Append agent note and edge instructions to the system prompt
         final_system_prompt = agent.system_prompt
         
@@ -207,7 +212,7 @@ def build_agent_graph(
         # User prompt engineering logic: Force a hard prompt to prevent looping if a limit is set
         if agent.max_tool_calls != -1:
             times_word = "once" if agent.max_tool_calls == 1 else "twice" if agent.max_tool_calls == 2 else f"{agent.max_tool_calls} times"
-            final_system_prompt += f"\n\n## Tool Usage Limit\nCall the tool just {times_word}, enough, and send the word 'thanks'."
+            final_system_prompt += f"\n\n## Tool Usage Limit\nYou may use multiple tools to complete the task, but you must NOT call the same tool more than {times_word}. Once you have gathered enough information, stop calling tools and send the word 'thanks'."
         
         # Wrap llm with DeterministicToolWrapper (DI approach)
         wrapped_llm = DeterministicToolWrapper(
@@ -218,7 +223,7 @@ def build_agent_graph(
             telemetry_publisher=telemetry_publisher
         )
         
-        tool_node = ToolNode(requested_tools, handle_tool_errors=True) if requested_tools else []
+        tool_node = ToolNode(rate_limited_tools, handle_tool_errors=True) if rate_limited_tools else []
         
         agent_node = create_react_agent(
             model=wrapped_llm, 

@@ -301,7 +301,7 @@ export function AgentNode({ id, data, selected }: AgentNodeProps & { selected?: 
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <div className="text-[10px] text-muted-foreground">Max Tool Calls</div>
+                    <div className="text-[10px] text-muted-foreground">Max Calls Per Tool</div>
                     <label className="flex items-center gap-1 cursor-pointer">
                       <span className="text-[10px] text-muted-foreground">Infinite</span>
                       <div className="relative inline-flex items-center">
@@ -327,7 +327,7 @@ export function AgentNode({ id, data, selected }: AgentNodeProps & { selected?: 
                     onBlur={handleToolCallsBlur}
                     min={1}
                     disabled={maxToolCalls === -1}
-                    placeholder={maxToolCalls === -1 ? "Unlimited" : "Enter max tool calls"}
+                    placeholder={maxToolCalls === -1 ? "Unlimited" : "Enter max calls per tool"}
                   />
                 </div>
               </div>

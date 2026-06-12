@@ -402,10 +402,10 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
                   </p>
                 </div>
 
-                <div>
+                <div className="pt-4 border-t border-white/5">
                   <div className="flex items-center justify-between mb-2">
                     <label className="block text-sm font-semibold">
-                      Max Tool Calls per Agent <span className="text-muted-foreground font-normal ml-1">(Default: 1)</span>
+                      Max Calls Per Tool <span className="text-muted-foreground font-normal ml-1">(Default: 1)</span>
                     </label>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground">Infinite</span>

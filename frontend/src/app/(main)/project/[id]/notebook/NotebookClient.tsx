@@ -639,7 +639,7 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-medium">Max Tool Calls</label>
+                    <label className="text-xs font-medium">Max Calls Per Tool</label>
                     <label className="flex items-center gap-1 cursor-pointer">
                       <span className="text-[10px] text-muted-foreground">Infinite</span>
                       <div className="relative inline-flex items-center">
@@ -660,7 +660,7 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
                     onChange={(e) => setMaxToolCalls(parseInt(e.target.value) || 1)}
                     min={1}
                     disabled={maxToolCalls === -1}
-                    placeholder={maxToolCalls === -1 ? "Unlimited" : "Enter max tool calls"}
+                    placeholder={maxToolCalls === -1 ? "Unlimited" : "Enter max calls per tool"}
                   />
                 </div>
               </div>
