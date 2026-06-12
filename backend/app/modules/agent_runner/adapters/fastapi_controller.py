@@ -5,9 +5,11 @@ import os
 from fastapi import APIRouter, HTTPException, Request
 from sse_starlette.sse import EventSourceResponse
 from pydantic import BaseModel
-from typing import Literal
+from typing import Literal, Optional
 from app.modules.agent_runner.domain.models import AgentBlueprint
 from app.modules.agent_runner.tasks import run_agent_pipeline
+from app.core.celery_app import celery_app
+from app.modules.agent_runner.infrastructure.adapters.langchain_llm_factory import LangchainLLMFactory
 from app.core.celery_app import celery_app
 
 router = APIRouter()
@@ -213,3 +215,34 @@ async def approve_tool(req: ApprovalRequest):
         return {"status": "success", "message": f"Tool {req.tool_name} {req.action}d"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+class TestConnectionRequest(BaseModel):
+    provider: str
+    api_key: Optional[str] = None
+    base_url: Optional[str] = None
+    model: str
+
+@router.post("/test-connection")
+async def test_llm_connection(req: TestConnectionRequest):
+    """
+    Tests an LLM connection by instantiating the model and calling it with a simple prompt.
+    """
+    if not req.model:
+        raise HTTPException(status_code=400, detail="Model name is required for testing.")
+        
+    try:
+        factory = LangchainLLMFactory()
+        llm = factory.create_llm(
+            provider=req.provider,
+            model_id=req.model,
+            api_key=req.api_key,
+            base_url=req.base_url
+        )
+        
+        # Send a simple hello message
+        response = llm.invoke("Hello. Reply 'OK' if you receive this.")
+        return {"status": "success", "message": str(response.content)}
+        
+    except Exception as e:
+        # Return 400 so the client knows it's an error and can display the detail
+        raise HTTPException(status_code=400, detail=f"Connection failed: {str(e)}")

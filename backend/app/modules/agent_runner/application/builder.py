@@ -135,10 +135,10 @@ def build_agent_graph(
                 requested_tools.append(TOOL_REGISTRY_MAP[tool_id])
                 
         # Inject Handoff Tools based on delegate edges
-        for target_id in delegate_edges[agent.id]:
-            if target_id in agent_map:
-                target_agent = agent_map[target_id]
-                        
+        handoff_tools = []
+        for target_id in delegate_edges.get(agent.id, []):
+            target_agent = agent_map.get(target_id)
+            if target_agent:
                 target_tool_names = []
                 for t in target_agent.tools:
                     if isinstance(t, dict):
@@ -161,10 +161,13 @@ def build_agent_graph(
                     target_agent.system_prompt or "Helpful Assistant",
                     caps_str
                 )
-                requested_tools.append(handoff)
+                handoff_tools.append(handoff)
         
-        # Apply Rate Limiter Circuit Breaker to all tools
-        rate_limited_tools = [create_rate_limited_tool(t, agent.max_tool_calls) for t in requested_tools]
+        # Apply Rate Limiter Circuit Breaker separately
+        rate_limited_mcp_tools = [create_rate_limited_tool(t, agent.max_tool_calls) for t in requested_tools]
+        rate_limited_handoff_tools = [create_rate_limited_tool(t, agent.max_handoff_bounces) for t in handoff_tools]
+        
+        all_rate_limited_tools = rate_limited_mcp_tools + rate_limited_handoff_tools
         
         # Append agent note and edge instructions to the system prompt
         final_system_prompt = agent.system_prompt
@@ -210,9 +213,15 @@ def build_agent_graph(
                         final_system_prompt += f"\n- **{target_agent.name}**{caps_str} (Sequential Handoff): {sys_snippet}"
         
         # User prompt engineering logic: Force a hard prompt to prevent looping if a limit is set
-        if agent.max_tool_calls != -1:
-            times_word = "once" if agent.max_tool_calls == 1 else "twice" if agent.max_tool_calls == 2 else f"{agent.max_tool_calls} times"
-            final_system_prompt += f"\n\n## Tool Usage Limit\nYou may use multiple tools to complete the task, but you must NOT call the same tool more than {times_word}. Once you have gathered enough information, stop calling tools and send the word 'thanks'."
+        if agent.max_tool_calls != -1 or agent.max_handoff_bounces != -1:
+            final_system_prompt += f"\n\n## Limits"
+            if agent.max_tool_calls != -1:
+                times_word = "once" if agent.max_tool_calls == 1 else "twice" if agent.max_tool_calls == 2 else f"{agent.max_tool_calls} times"
+                final_system_prompt += f"\n- You must NOT call the same data-gathering tool more than {times_word}."
+            if agent.max_handoff_bounces != -1:
+                bounce_word = "once" if agent.max_handoff_bounces == 1 else "twice" if agent.max_handoff_bounces == 2 else f"{agent.max_handoff_bounces} times"
+                final_system_prompt += f"\n- You must NOT hand off tasks to the same Agent more than {bounce_word}."
+            final_system_prompt += "\nOnce you have gathered enough information, stop calling tools and summarize the final answer."
         
         # Wrap llm with DeterministicToolWrapper (DI approach)
         wrapped_llm = DeterministicToolWrapper(
@@ -223,7 +232,7 @@ def build_agent_graph(
             telemetry_publisher=telemetry_publisher
         )
         
-        tool_node = ToolNode(rate_limited_tools, handle_tool_errors=True) if rate_limited_tools else []
+        tool_node = ToolNode(all_rate_limited_tools, handle_tool_errors=True) if all_rate_limited_tools else []
         
         agent_node = create_react_agent(
             model=wrapped_llm, 

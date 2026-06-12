@@ -11,6 +11,7 @@ class AgentConfig(BaseModel):
     agent_note: Optional[str] = Field(None, alias="agentNote")
     credentials: Optional[Dict[str, Optional[str]]] = Field(default_factory=dict)
     max_tool_calls: int = Field(1, alias="maxToolCalls")  # -1 = unlimited
+    max_handoff_bounces: int = Field(1, alias="maxHandoffBounces")  # -1 = unlimited
     max_memory_messages: int = Field(10, alias="maxMemoryMessages")  # -1 = unlimited
     
     class Config:

@@ -10,6 +10,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select } from "@/components/ui/Select";
+import { NumberInput } from "@/components/ui/number-input";
 
 interface NotebookClientProps {
   projectId: string;
@@ -80,7 +81,9 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
   const [enableCustomLimits, setEnableCustomLimits] = useState(false);
   const [maxTokens, setMaxTokens] = useState(100000);
   const [maxIterations, setMaxIterations] = useState(25);
-  const [maxToolCalls, setMaxToolCalls] = useState(1);
+  const [maxToolCalls, setMaxToolCalls] = useState(projSettings.executionSettings?.maxToolCalls ?? 1);
+  const [maxHandoffBounces, setMaxHandoffBounces] = useState(projSettings.executionSettings?.maxHandoffBounces ?? 1);
+  const [maxMemoryMessages, setMaxMemoryMessages] = useState(projSettings.executionSettings?.maxMemoryMessages ?? 10);
   
   // Editor re-mount key (to force Tiptap to load new content)
   const [editorKey, setEditorKey] = useState(0);
@@ -142,7 +145,9 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
       setEnableCustomLimits(false);
       setMaxTokens(100000);
       setMaxIterations(25);
-      setMaxToolCalls(1);
+      setMaxToolCalls(projSettings.executionSettings?.maxToolCalls ?? 1);
+      setMaxHandoffBounces(projSettings.executionSettings?.maxHandoffBounces ?? 1);
+      setMaxMemoryMessages(projSettings.executionSettings?.maxMemoryMessages ?? 10);
       setEditorKey(prev => prev + 1); // Force editor refresh
     } else {
       const node = allNodes.find(n => n.id === selectedAgentId);
@@ -158,6 +163,12 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
         setMaxTokens((node.data.maxTokens as number) || 100000);
         setMaxIterations((node.data.maxIterations as number) || 25);
         setMaxToolCalls((node.data.maxToolCalls as number) ?? 1);
+        if (projSettings.executionSettings && projSettings.executionSettings.maxHandoffBounces !== undefined) {
+          setMaxHandoffBounces(projSettings.executionSettings.maxHandoffBounces);
+        }
+        if (projSettings.executionSettings && projSettings.executionSettings.maxMemoryMessages !== undefined) {
+          setMaxMemoryMessages(projSettings.executionSettings.maxMemoryMessages);
+        }
         
         setEditorKey(prev => prev + 1); // Force editor refresh
       }
@@ -216,7 +227,9 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
           enableCustomLimits,
           maxTokens,
           maxIterations,
-          maxToolCalls
+          maxToolCalls,
+          maxHandoffBounces,
+          maxMemoryMessages
         }
       };
       updatedNodes.push(newNode);
@@ -236,7 +249,9 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
             enableCustomLimits,
             maxTokens,
             maxIterations,
-            maxToolCalls
+            maxToolCalls,
+            maxHandoffBounces,
+            maxMemoryMessages
           }
         } : n
       );
@@ -618,22 +633,18 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
               <div className={`space-y-3 transition-opacity ${enableCustomLimits ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
                 <div>
                   <label className="text-xs font-medium block mb-1">Max Tokens</label>
-                  <input
-                    type="number"
-                    className="w-full text-sm p-2 bg-background border rounded-md outline-none focus:ring-2 focus:ring-primary/50"
+                  <NumberInput
                     value={maxTokens}
-                    onChange={(e) => setMaxTokens(parseInt(e.target.value) || 0)}
+                    onChange={(val) => setMaxTokens(Number(val) || 0)}
                     min={100}
                     step={1000}
                   />
                 </div>
                 <div>
                   <label className="text-xs font-medium block mb-1">Max Iterations (Loops)</label>
-                  <input
-                    type="number"
-                    className="w-full text-sm p-2 bg-background border rounded-md outline-none focus:ring-2 focus:ring-primary/50"
+                  <NumberInput
                     value={maxIterations}
-                    onChange={(e) => setMaxIterations(parseInt(e.target.value) || 0)}
+                    onChange={(val) => setMaxIterations(Number(val) || 0)}
                     min={1}
                   />
                 </div>
@@ -653,14 +664,63 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
                       </div>
                     </label>
                   </div>
-                  <input
-                    type="number"
-                    className="w-full text-sm p-2 bg-background border rounded-md outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+                  <NumberInput
                     value={maxToolCalls === -1 ? '' : (maxToolCalls ?? 1)}
-                    onChange={(e) => setMaxToolCalls(parseInt(e.target.value) || 1)}
+                    onChange={(val) => setMaxToolCalls(Number(val) || 1)}
                     min={1}
                     disabled={maxToolCalls === -1}
                     placeholder={maxToolCalls === -1 ? "Unlimited" : "Enter max calls per tool"}
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-medium">Max Handoff Bounces</label>
+                    <label className="flex items-center gap-1 cursor-pointer">
+                      <span className="text-[10px] text-muted-foreground">Infinite</span>
+                      <div className="relative inline-flex items-center">
+                        <input 
+                          type="checkbox" 
+                          className="sr-only peer"
+                          checked={maxHandoffBounces === -1}
+                          onChange={(e) => setMaxHandoffBounces(e.target.checked ? -1 : 1)}
+                        />
+                        <div className="w-6 h-3.5 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1.5px] after:left-[1.5px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-2.5 after:w-2.5 after:transition-all peer-checked:bg-emerald-500"></div>
+                      </div>
+                    </label>
+                  </div>
+                  <NumberInput
+                    value={maxHandoffBounces === -1 ? '' : (maxHandoffBounces ?? 1)}
+                    onChange={(val) => setMaxHandoffBounces(Number(val) || 1)}
+                    min={1}
+                    disabled={maxHandoffBounces === -1}
+                    placeholder={maxHandoffBounces === -1 ? "Unlimited" : "Enter max handoff bounces"}
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-medium">Max Memory Messages</label>
+                    <label className="flex items-center gap-1 cursor-pointer">
+                      <span className="text-[10px] text-muted-foreground">Infinite</span>
+                      <div className="relative inline-flex items-center">
+                        <input 
+                          type="checkbox" 
+                          className="sr-only peer"
+                          checked={maxMemoryMessages === -1}
+                          onChange={(e) => setMaxMemoryMessages(e.target.checked ? -1 : 10)}
+                        />
+                        <div className="w-6 h-3.5 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1.5px] after:left-[1.5px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-2.5 after:w-2.5 after:transition-all peer-checked:bg-emerald-500"></div>
+                      </div>
+                    </label>
+                  </div>
+                  <NumberInput
+                    value={maxMemoryMessages === -1 ? '' : (maxMemoryMessages ?? 10)}
+                    onChange={(val) => {
+                      const numVal = Number(val);
+                      setMaxMemoryMessages(isNaN(numVal) ? 0 : numVal);
+                    }}
+                    min={0}
+                    disabled={maxMemoryMessages === -1}
+                    placeholder={maxMemoryMessages === -1 ? "Unlimited" : "Enter max memory messages"}
                   />
                 </div>
               </div>

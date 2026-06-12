@@ -114,6 +114,9 @@ export function useDeployBlueprint() {
             maxToolCalls: n.data.enableCustomLimits 
               ? (n.data.maxToolCalls ?? settings.executionSettings?.maxToolCalls ?? 1)
               : (settings.executionSettings?.maxToolCalls ?? 1),
+            maxHandoffBounces: n.data.enableCustomLimits 
+              ? (n.data.maxHandoffBounces ?? settings.executionSettings?.maxHandoffBounces ?? 1)
+              : (settings.executionSettings?.maxHandoffBounces ?? 1),
             maxMemoryMessages: n.data.enableCustomLimits 
               ? (n.data.maxMemoryMessages ?? settings.executionSettings?.maxMemoryMessages ?? 10)
               : (settings.executionSettings?.maxMemoryMessages ?? 10),
@@ -233,6 +236,9 @@ export function useDeployBlueprint() {
             maxToolCalls: n.data.enableCustomLimits 
               ? (n.data.maxToolCalls ?? settings.executionSettings?.maxToolCalls ?? 1)
               : (settings.executionSettings?.maxToolCalls ?? 1),
+            maxHandoffBounces: n.data.enableCustomLimits 
+              ? (n.data.maxHandoffBounces ?? settings.executionSettings?.maxHandoffBounces ?? 1)
+              : (settings.executionSettings?.maxHandoffBounces ?? 1),
             maxMemoryMessages: n.data.enableCustomLimits 
               ? (n.data.maxMemoryMessages ?? settings.executionSettings?.maxMemoryMessages ?? 10)
               : (settings.executionSettings?.maxMemoryMessages ?? 10),

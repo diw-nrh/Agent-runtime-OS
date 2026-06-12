@@ -4,6 +4,7 @@ import { useEffect, useState, use } from "react";
 import { useSettingsStore, AIConnection, AIProviderType, CustomMcpTool, ExecutionSettings } from "@/store/settingsStore";
 import { Server, Plus, Trash2, Edit2, ShieldCheck, Cpu, Package, Link2, Unlink, Wrench, Globe, AlertTriangle, Settings2, Save, Activity, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { Select } from "@/components/ui/Select";
+import { NumberInput } from "@/components/ui/number-input";
 
 export default function ProjectSettingsPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -106,6 +107,54 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
     }
   };
 
+  const [connTestStatus, setConnTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  const [connTestModel, setConnTestModel] = useState("");
+
+  const testAiConnection = async () => {
+    if (!connTestModel) {
+      alert("Please enter a Test Model Name before testing.");
+      return;
+    }
+    
+    // Validate inputs based on provider
+    if ((provider === 'openai-compatible' || provider === 'local') && !baseUrl) {
+      alert("Base URL is required for this provider.");
+      return;
+    }
+    
+    if (provider !== 'openai-compatible' && provider !== 'local' && !apiKey) {
+      alert("API Key is required for this provider.");
+      return;
+    }
+    
+    try {
+      setConnTestStatus('testing');
+      const res = await fetch('http://localhost:8000/api/agent/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          provider, 
+          model: connTestModel,
+          api_key: apiKey,
+          base_url: baseUrl 
+        })
+      });
+      const data = await res.json();
+      
+      if (!res.ok) {
+        setConnTestStatus('error');
+        alert("Connection Failed:\n\n" + (data.detail || "Unknown error"));
+      } else {
+        setConnTestStatus('success');
+        setTimeout(() => setConnTestStatus('idle'), 3000);
+        alert(`Success! Model responded:\n\n"${data.message}"`);
+      }
+    } catch (err) {
+      setConnTestStatus('error');
+      alert("Failed to reach backend to test AI connection.");
+    }
+  };
+
   const handleOpenCustomModal = (tool?: CustomMcpTool) => {
     if (tool) {
       setEditingCustomToolId(tool.id);
@@ -173,6 +222,8 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
       setApiKey("");
       setBaseUrl("https://api.openai.com/v1");
     }
+    setConnTestStatus('idle');
+    setConnTestModel("");
     setShowModal(true);
   };
 
@@ -329,7 +380,7 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
             </div>
             <div className="flex items-center gap-2 mt-1">
               <button 
-                onClick={() => setExecutionSettings({ enableGlobalLimits: true, maxTokensPerRun: 100000, maxIterations: 25, enableFaultTolerance: false, maxToolCalls: 1, maxMemoryMessages: 10 })}
+                onClick={() => setExecutionSettings({ enableGlobalLimits: true, maxTokensPerRun: 100000, maxIterations: 25, enableFaultTolerance: false, maxToolCalls: 1, maxHandoffBounces: 1, maxMemoryMessages: 10 })}
                 className="flex items-center justify-center px-4 py-2.5 rounded-md font-medium bg-muted text-muted-foreground hover:text-foreground transition-all shadow-sm shrink-0 whitespace-nowrap text-sm"
               >
                 Reset to Default
@@ -372,11 +423,10 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
               <div className={`grid gap-6 md:grid-cols-2 transition-opacity ${executionSettings.enableGlobalLimits ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
                 <div>
                   <label className="block text-sm font-semibold mb-2">Max Tokens per Run <span className="text-muted-foreground font-normal ml-1">(Default: 100000)</span></label>
-                  <input 
-                    type="number" 
+                  <NumberInput 
                     value={executionSettings.maxTokensPerRun}
-                    onChange={(e) => setExecutionSettings({ ...executionSettings, maxTokensPerRun: parseInt(e.target.value) || 0 })}
-                    className="w-full px-4 py-2.5 border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 text-base"
+                    onChange={(val) => setExecutionSettings({ ...executionSettings, maxTokensPerRun: Number(val) || 0 })}
+                    className="w-full text-base"
                     min={100}
                     step={1000}
                     disabled={!executionSettings.enableGlobalLimits}
@@ -388,11 +438,10 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
 
                 <div>
                   <label className="block text-sm font-semibold mb-2">Max Agent Iterations <span className="text-muted-foreground font-normal ml-1">(Default: 25)</span></label>
-                  <input 
-                    type="number" 
+                  <NumberInput 
                     value={executionSettings.maxIterations}
-                    onChange={(e) => setExecutionSettings({ ...executionSettings, maxIterations: parseInt(e.target.value) || 0 })}
-                    className="w-full px-4 py-2.5 border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 text-base"
+                    onChange={(val) => setExecutionSettings({ ...executionSettings, maxIterations: Number(val) || 0 })}
+                    className="w-full text-base"
                     min={1}
                     max={100}
                     disabled={!executionSettings.enableGlobalLimits}
@@ -424,11 +473,10 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
                       </label>
                     </div>
                   </div>
-                  <input 
-                    type="number" 
+                  <NumberInput 
                     value={executionSettings.maxToolCalls === -1 ? '' : (executionSettings.maxToolCalls ?? 1)}
-                    onChange={(e) => setExecutionSettings({ ...executionSettings, maxToolCalls: parseInt(e.target.value) || 1 })}
-                    className="w-full px-4 py-2.5 border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 text-base"
+                    onChange={(val) => setExecutionSettings({ ...executionSettings, maxToolCalls: Number(val) || 1 })}
+                    className="w-full text-base"
                     min={1}
                     max={100}
                     disabled={!executionSettings.enableGlobalLimits || executionSettings.maxToolCalls === -1}
@@ -438,6 +486,42 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
                     How many times each Agent can call a tool per run. Turn on Infinite for unlimited calls.
                   </p>
                 </div>
+                <div className="pt-4 border-t border-white/5">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-semibold">
+                      Max Handoff Bounces <span className="text-muted-foreground font-normal ml-1">(Default: 1)</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">Infinite</span>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          className="sr-only peer"
+                          checked={executionSettings.maxHandoffBounces === -1}
+                          onChange={(e) => setExecutionSettings({ 
+                            ...executionSettings, 
+                            maxHandoffBounces: e.target.checked ? -1 : 1 
+                          })}
+                          disabled={!executionSettings.enableGlobalLimits}
+                        />
+                        <div className="w-9 h-5 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                      </label>
+                    </div>
+                  </div>
+                  <NumberInput 
+                    value={executionSettings.maxHandoffBounces === -1 ? '' : (executionSettings.maxHandoffBounces ?? 1)}
+                    onChange={(val) => setExecutionSettings({ ...executionSettings, maxHandoffBounces: Number(val) || 1 })}
+                    className="w-full text-base"
+                    min={1}
+                    max={100}
+                    disabled={!executionSettings.enableGlobalLimits || executionSettings.maxHandoffBounces === -1}
+                    placeholder={executionSettings.maxHandoffBounces === -1 ? "Unlimited" : "Enter max handoff bounces"}
+                  />
+                  <p className="text-xs text-muted-foreground mt-2">
+                    How many times an Agent can delegate tasks to another Agent. Turn on Infinite for unlimited bounces.
+                  </p>
+                </div>
+                
 
                 <div className="pt-4 border-t border-white/5">
                   <div className="flex items-center justify-between mb-2">
@@ -461,12 +545,14 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
                       </label>
                     </div>
                   </div>
-                  <input 
-                    type="number" 
+                  <NumberInput 
                     value={executionSettings.maxMemoryMessages === -1 ? '' : (executionSettings.maxMemoryMessages ?? 10)}
-                    onChange={(e) => setExecutionSettings({ ...executionSettings, maxMemoryMessages: parseInt(e.target.value) || 10 })}
-                    className="w-full px-4 py-2.5 border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 text-base"
-                    min={2}
+                    onChange={(val) => {
+                      const numVal = Number(val);
+                      setExecutionSettings({ ...executionSettings, maxMemoryMessages: isNaN(numVal) ? 0 : numVal });
+                    }}
+                    className="w-full text-base"
+                    min={0}
                     max={100}
                     disabled={!executionSettings.enableGlobalLimits || executionSettings.maxMemoryMessages === -1}
                     placeholder={executionSettings.maxMemoryMessages === -1 ? "Unlimited" : "Enter max memory messages"}
@@ -700,7 +786,38 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
                   />
                 </div>
 
-                <div className="flex justify-end gap-3 mt-8">
+                <div className="pt-4 border-t border-border/50">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium">Test Connection</label>
+                  </div>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      value={connTestModel}
+                      onChange={(e) => setConnTestModel(e.target.value)}
+                      placeholder="Test Model Name (e.g. gpt-4o-mini)"
+                      className="w-full px-3 py-2 border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={testAiConnection}
+                      disabled={connTestStatus === 'testing' || !connTestModel}
+                      className={`px-4 py-2 text-sm border rounded-md transition-colors flex items-center justify-center gap-2 whitespace-nowrap disabled:opacity-50 ${
+                        connTestStatus === 'success' ? 'bg-green-500/10 text-green-500 hover:bg-green-500/20 border-green-500/20' :
+                        connTestStatus === 'error' ? 'bg-red-500/10 text-red-500 hover:bg-red-500/20 border-red-500/20' :
+                        'bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 border-blue-500/20'
+                      }`}
+                    >
+                      {connTestStatus === 'testing' ? <Loader2 className="w-4 h-4 animate-spin" /> : 
+                       connTestStatus === 'success' ? <CheckCircle2 className="w-4 h-4" /> :
+                       connTestStatus === 'error' ? <XCircle className="w-4 h-4" /> :
+                       <Activity className="w-4 h-4" />}
+                      {connTestStatus === 'success' ? 'Success' : connTestStatus === 'error' ? 'Failed' : 'Test'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 mt-8 pt-4">
                   <button
                     type="button"
                     onClick={() => setShowModal(false)}

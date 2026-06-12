@@ -31,6 +31,7 @@ export interface ExecutionSettings {
   maxIterations: number;
   enableFaultTolerance: boolean;
   maxToolCalls: number; // -1 = unlimited, 1 = default (safest)
+  maxHandoffBounces: number; // -1 = unlimited, 1 = default
   maxMemoryMessages: number; // -1 = unlimited, 10 = default
 }
 

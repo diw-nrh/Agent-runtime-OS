@@ -6,6 +6,7 @@ import { useSettingsStore } from '@/store/settingsStore';
 import { Select } from '@/components/ui/Select';
 import { AgentNodeProps } from '@/types/canvas';
 import { NotebookEditor } from '../notebook/Editor';
+import { NumberInput } from '@/components/ui/number-input';
 
 // Remove the global cache since we now use project settings
 export function AgentNode({ id, data, selected }: AgentNodeProps & { selected?: boolean }) {
@@ -34,6 +35,8 @@ export function AgentNode({ id, data, selected }: AgentNodeProps & { selected?: 
   const [maxTokens, setMaxTokens] = useState(data.maxTokens || 100000);
   const [maxIterations, setMaxIterations] = useState(data.maxIterations || 25);
   const [maxToolCalls, setMaxToolCalls] = useState(data.maxToolCalls ?? 1);
+  const [maxHandoffBounces, setMaxHandoffBounces] = useState(data.maxHandoffBounces ?? 1);
+  const [maxMemoryMessages, setMaxMemoryMessages] = useState(data.maxMemoryMessages ?? 10);
 
   // Sync local state if data changes from outside (e.g. loading a new blueprint)
   useEffect(() => { setLocalLabel(data.label || ''); }, [data.label]);
@@ -63,7 +66,7 @@ export function AgentNode({ id, data, selected }: AgentNodeProps & { selected?: 
   const handleCustomLimitsToggle = (e: React.ChangeEvent<HTMLInputElement>) => {
     const checked = e.target.checked;
     setEnableCustomLimits(checked);
-    updateNodeData(id, { ...data, enableCustomLimits: checked, maxTokens, maxIterations, maxToolCalls });
+    updateNodeData(id, { ...data, enableCustomLimits: checked, maxTokens, maxIterations, maxToolCalls, maxHandoffBounces, maxMemoryMessages });
   };
 
   const handleTokensBlur = () => {
@@ -76,6 +79,14 @@ export function AgentNode({ id, data, selected }: AgentNodeProps & { selected?: 
 
   const handleToolCallsBlur = () => {
     updateNodeData(id, { ...data, maxToolCalls });
+  };
+
+  const handleHandoffBouncesBlur = () => {
+    updateNodeData(id, { ...data, maxHandoffBounces });
+  };
+
+  const handleMemoryMessagesBlur = () => {
+    updateNodeData(id, { ...data, maxMemoryMessages });
   };
 
   const handleConnectionChange = (connId: string) => {
@@ -278,11 +289,10 @@ export function AgentNode({ id, data, selected }: AgentNodeProps & { selected?: 
               <div className={`space-y-2 transition-opacity ${enableCustomLimits ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
                 <div>
                   <div className="text-[10px] text-muted-foreground mb-1">Max Tokens</div>
-                  <input
-                    type="number"
-                    className="w-full text-xs p-1.5 bg-background border rounded-md outline-none focus:border-primary/50 nodrag"
+                  <NumberInput
+                    className="nodrag"
                     value={Number(maxTokens)}
-                    onChange={(e) => setMaxTokens(parseInt(e.target.value) || 0)}
+                    onChange={(val) => setMaxTokens(Number(val) || 0)}
                     onBlur={handleTokensBlur}
                     min={100}
                     step={1000}
@@ -290,11 +300,10 @@ export function AgentNode({ id, data, selected }: AgentNodeProps & { selected?: 
                 </div>
                 <div>
                   <div className="text-[10px] text-muted-foreground mb-1">Max Iterations</div>
-                  <input
-                    type="number"
-                    className="w-full text-xs p-1.5 bg-background border rounded-md outline-none focus:border-primary/50 nodrag"
+                  <NumberInput
+                    className="nodrag"
                     value={Number(maxIterations)}
-                    onChange={(e) => setMaxIterations(parseInt(e.target.value) || 0)}
+                    onChange={(val) => setMaxIterations(Number(val) || 0)}
                     onBlur={handleIterationsBlur}
                     min={1}
                   />
@@ -319,15 +328,77 @@ export function AgentNode({ id, data, selected }: AgentNodeProps & { selected?: 
                       </div>
                     </label>
                   </div>
-                  <input
-                    type="number"
-                    className="w-full text-xs p-1.5 bg-background border rounded-md outline-none focus:border-primary/50 nodrag disabled:opacity-50"
+                  <NumberInput
+                    className="nodrag"
                     value={maxToolCalls === -1 ? '' : (Number(maxToolCalls) || 1)}
-                    onChange={(e) => setMaxToolCalls(parseInt(e.target.value) || 1)}
+                    onChange={(val) => setMaxToolCalls(Number(val) || 1)}
                     onBlur={handleToolCallsBlur}
                     min={1}
                     disabled={maxToolCalls === -1}
                     placeholder={maxToolCalls === -1 ? "Unlimited" : "Enter max calls per tool"}
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="text-[10px] text-muted-foreground">Max Handoff Bounces</div>
+                    <label className="flex items-center gap-1 cursor-pointer">
+                      <span className="text-[10px] text-muted-foreground">Infinite</span>
+                      <div className="relative inline-flex items-center">
+                        <input 
+                          type="checkbox" 
+                          className="sr-only peer"
+                          checked={maxHandoffBounces === -1}
+                          onChange={(e) => {
+                            const val = e.target.checked ? -1 : 1;
+                            setMaxHandoffBounces(val);
+                            updateNodeData(id, { ...data, maxHandoffBounces: val });
+                          }}
+                        />
+                        <div className="w-5 h-3 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1px] after:left-[1px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-2.5 after:w-2.5 after:transition-all peer-checked:bg-emerald-500"></div>
+                      </div>
+                    </label>
+                  </div>
+                  <NumberInput
+                    className="nodrag"
+                    value={maxHandoffBounces === -1 ? '' : (Number(maxHandoffBounces) || 1)}
+                    onChange={(val) => setMaxHandoffBounces(Number(val) || 1)}
+                    onBlur={handleHandoffBouncesBlur}
+                    min={1}
+                    disabled={maxHandoffBounces === -1}
+                    placeholder={maxHandoffBounces === -1 ? "Unlimited" : "Enter max handoff bounces"}
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="text-[10px] text-muted-foreground">Max Memory Messages</div>
+                    <label className="flex items-center gap-1 cursor-pointer">
+                      <span className="text-[10px] text-muted-foreground">Infinite</span>
+                      <div className="relative inline-flex items-center">
+                        <input 
+                          type="checkbox" 
+                          className="sr-only peer"
+                          checked={maxMemoryMessages === -1}
+                          onChange={(e) => {
+                            const val = e.target.checked ? -1 : 10;
+                            setMaxMemoryMessages(val);
+                            updateNodeData(id, { ...data, maxMemoryMessages: val });
+                          }}
+                        />
+                        <div className="w-5 h-3 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1px] after:left-[1px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-2.5 after:w-2.5 after:transition-all peer-checked:bg-emerald-500"></div>
+                      </div>
+                    </label>
+                  </div>
+                  <NumberInput
+                    className="nodrag"
+                    value={maxMemoryMessages === -1 ? '' : (Number(maxMemoryMessages) ?? 10)}
+                    onChange={(val) => {
+                      const numVal = Number(val);
+                      setMaxMemoryMessages(isNaN(numVal) ? 0 : numVal);
+                    }}
+                    onBlur={handleMemoryMessagesBlur}
+                    min={0}
+                    disabled={maxMemoryMessages === -1}
+                    placeholder={maxMemoryMessages === -1 ? "Unlimited" : "Enter max memory messages"}
                   />
                 </div>
               </div>
