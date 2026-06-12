@@ -204,9 +204,10 @@ def build_agent_graph(
                     else:
                         final_system_prompt += f"\n- **{target_agent.name}**{caps_str} (Sequential Handoff): {sys_snippet}"
         
-        # User prompt engineering logic: If max_tool_calls is exactly 1 (default limit), force a hard prompt to prevent looping
-        if agent.max_tool_calls == 1:
-            final_system_prompt += "\n\n## Tool Usage Limit\nCall the tool just once, enough, and send the word 'thanks'."
+        # User prompt engineering logic: Force a hard prompt to prevent looping if a limit is set
+        if agent.max_tool_calls != -1:
+            times_word = "once" if agent.max_tool_calls == 1 else "twice" if agent.max_tool_calls == 2 else f"{agent.max_tool_calls} times"
+            final_system_prompt += f"\n\n## Tool Usage Limit\nCall the tool just {times_word}, enough, and send the word 'thanks'."
         
         # Wrap llm with DeterministicToolWrapper (DI approach)
         wrapped_llm = DeterministicToolWrapper(

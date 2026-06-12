@@ -58,6 +58,21 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
   const [provider, setProvider] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [selectedTools, setSelectedTools] = useState<string[]>([]);
+  const [isToolDropdownOpen, setIsToolDropdownOpen] = useState(false);
+  const toolDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close tool dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (toolDropdownRef.current && !toolDropdownRef.current.contains(e.target as Node)) {
+        setIsToolDropdownOpen(false);
+      }
+    };
+    if (isToolDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isToolDropdownOpen]);
   const [targetAgentId, setTargetAgentId] = useState("");
   
   // Advanced Limits State
@@ -690,10 +705,48 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
         </div>
 
         <div className="pt-6 border-t">
-          <h3 className="font-semibold mb-3 flex items-center gap-2"><Wrench size={16}/> Attached Tools</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold flex items-center gap-2"><Wrench size={16}/> Attached Tools</h3>
+            {allProjectTools.length > 0 && (
+              <div className="relative" ref={toolDropdownRef}>
+                <button 
+                  onClick={() => setIsToolDropdownOpen(!isToolDropdownOpen)}
+                  className="flex items-center gap-1 text-xs bg-primary/10 text-primary font-medium border border-primary/20 rounded-md px-2 py-1 cursor-pointer hover:bg-primary/20 transition-colors focus:outline-none"
+                >
+                  + Add Tools <ChevronDown className={`w-3 h-3 transition-transform ${isToolDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {isToolDropdownOpen && (
+                  <div className="absolute right-0 top-full mt-1 w-48 bg-card border border-border rounded-md shadow-xl z-50 max-h-60 overflow-y-auto animate-in fade-in zoom-in-95 duration-100">
+                    <div className="p-1 flex flex-col">
+                      {allProjectTools.map(t => {
+                        const isSelected = selectedTools.includes(t.id);
+                        return (
+                          <label key={t.id} className="flex items-center gap-2 px-2 py-1.5 hover:bg-muted rounded cursor-pointer text-sm transition-colors">
+                            <input 
+                              type="checkbox" 
+                              checked={isSelected}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedTools(prev => [...prev, t.id]);
+                                } else {
+                                  setSelectedTools(prev => prev.filter(id => id !== t.id));
+                                }
+                              }}
+                              className="rounded border-input text-primary focus:ring-primary h-3.5 w-3.5 accent-primary cursor-pointer"
+                            />
+                            <span className="truncate flex-1 font-medium">{t.name || t.id}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           {selectedTools.length === 0 ? (
             <div className="text-sm text-muted-foreground bg-muted/50 p-4 rounded-lg border border-dashed text-center">
-              Type <kbd className="bg-background px-1.5 py-0.5 rounded border font-mono text-xs shadow-sm">@</kbd> in the editor to discover and attach tools.
+              Type <kbd className="bg-background px-1.5 py-0.5 rounded border font-mono text-xs shadow-sm">@</kbd> in the editor or use <span className="font-medium text-primary">+ Add Tool</span> above.
             </div>
           ) : (
             <div className="flex flex-col gap-2">
