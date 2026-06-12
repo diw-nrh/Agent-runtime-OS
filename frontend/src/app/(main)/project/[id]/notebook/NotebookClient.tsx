@@ -64,7 +64,7 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
   // Close tool dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (toolDropdownRef.current && !toolDropdownRef.current.contains(e.target as Node)) {
+      if (toolDropdownRef.current && !toolDropdownRef.current.contains(e.target as globalThis.Node)) {
         setIsToolDropdownOpen(false);
       }
     };
