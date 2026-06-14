@@ -25,6 +25,15 @@ export async function POST(request: Request) {
       }
     }
 
+    if (!workspaceId) {
+      const fallbackWorkspace = await prisma.workspace.findFirst();
+      if (fallbackWorkspace) {
+        workspaceId = fallbackWorkspace.id;
+      } else {
+        return NextResponse.json({ success: false, error: 'No workspace found. Please login or create a workspace first.' }, { status: 400 });
+      }
+    }
+
     // Create the new empty blueprint
     const newBlueprint = await prisma.agentBlueprint.create({
       data: {
@@ -36,13 +45,13 @@ export async function POST(request: Request) {
           agents: [],
           metadata: {}
         },
-        ...(workspaceId && { workspaceId })
+        workspaceId: workspaceId
       }
     });
 
     return NextResponse.json({ success: true, blueprint: newBlueprint });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error creating blueprint:", error);
-    return NextResponse.json({ success: false, error: error.message || 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : 'Internal Server Error' }, { status: 500 });
   }
 }

@@ -1,7 +1,24 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { McpToolConfig } from '@/types';
+
+interface DeployPayloadTool {
+  id: string;
+  isGlobal?: boolean;
+  name?: string;
+  type?: string;
+  url?: string;
+  command?: string;
+  args?: string[];
+}
+
+interface DeployPayloadAgent {
+  id: string;
+  tools?: DeployPayloadTool[];
+  [key: string]: unknown;
+}
 
 export async function POST(request: Request) {
   try {
@@ -60,8 +77,8 @@ export async function POST(request: Request) {
     // 3. Resolve Global Tools efficiently
     // Extract all global tool IDs
     const globalToolIds = new Set<string>();
-    body.agents.forEach((agent: any) => {
-      (agent.tools || []).forEach((tool: any) => {
+    body.agents.forEach((agent: DeployPayloadAgent) => {
+      (agent.tools || []).forEach((tool: DeployPayloadTool) => {
         if (tool.isGlobal) {
           globalToolIds.add(tool.id);
         }
@@ -83,7 +100,7 @@ export async function POST(request: Request) {
       
       globalTools.forEach(tool => {
         if (tool.versions && tool.versions.length > 0) {
-          const config = tool.versions[0].config as any;
+          const config = tool.versions[0].config as unknown as McpToolConfig & { type?: string };
           globalToolsMap.set(tool.id, {
             id: tool.id,
             name: tool.name,
@@ -96,8 +113,8 @@ export async function POST(request: Request) {
       });
     }
 
-    const enrichedAgents = body.agents.map((agent: any) => {
-      const enrichedTools = (agent.tools || []).map((tool: any) => {
+    const enrichedAgents = body.agents.map((agent: DeployPayloadAgent) => {
+      const enrichedTools = (agent.tools || []).map((tool: DeployPayloadTool) => {
         if (tool.isGlobal) {
           const globalToolConfig = globalToolsMap.get(tool.id);
           if (globalToolConfig) return globalToolConfig;
@@ -145,11 +162,8 @@ export async function POST(request: Request) {
       taskId: pythonData.task_id
     });
 
-  } catch (err: unknown) {
-    console.error("Failed to deploy blueprint:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Deployment failed" },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    console.error("Error submitting run:", error);
+    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : 'Internal Server Error' }, { status: 500 });
   }
 }

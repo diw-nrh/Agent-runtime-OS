@@ -1,10 +1,11 @@
 import { prisma } from "@/lib/prisma";
+import { CanvasData, CanvasNode, CanvasEdge } from '@/types';
 import { notFound } from "next/navigation";
 import { NotebookClient } from "./NotebookClient";
 
 import { Suspense } from "react";
 
-export default async function NotebookPage({ params }: { params: { id: string } }) {
+export default async function NotebookPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   
   // Fetch blueprint from database
@@ -17,11 +18,11 @@ export default async function NotebookPage({ params }: { params: { id: string } 
   }
 
   // Ensure we have valid JSON and extract nodes to pre-fill the notebook if available
-  let initialNodes: any[] = [];
-  let initialEdges: any[] = [];
-  
+  let initialNodes: CanvasNode[] = [];
+  let initialEdges: CanvasEdge[] = [];
+
   try {
-    const canvasData = blueprint.canvasData as any;
+    const canvasData = blueprint.canvasData as unknown as CanvasData;
     if (canvasData) {
       if (Array.isArray(canvasData.nodes)) initialNodes = canvasData.nodes;
       if (Array.isArray(canvasData.edges)) initialEdges = canvasData.edges;

@@ -5,7 +5,7 @@ import { Skill } from '@/store/settingsStore';
 
 interface SkillMentionListProps {
   items: Skill[];
-  command: (item: any) => void;
+  command: (item: { id: string, label: string }) => void;
 }
 
 export const SkillMentionList = forwardRef<MentionListRef, SkillMentionListProps>((props, ref) => {

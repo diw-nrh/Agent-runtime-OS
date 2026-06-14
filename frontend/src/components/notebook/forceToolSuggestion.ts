@@ -4,6 +4,7 @@ import { MentionList } from './MentionList';
 import { MentionListRef } from '@/types/notebook';
 import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion';
 import { PluginKey } from '@tiptap/pm/state';
+import { Editor, Range } from '@tiptap/core';
 import { useSettingsStore } from '@/store/settingsStore';
 
 export const forceToolSuggestionPluginKey = new PluginKey('forceToolSuggestion');
@@ -38,7 +39,8 @@ export function createForceToolSuggestion(projectId: string, onAddTool?: (toolId
         .slice(0, 10);
     },
 
-    command: ({ editor, range, props }: any) => {
+    command: ({ editor, range, props }: { editor: Editor, range: Range, props: { id: string | null, label?: string | null } }) => {
+      const p = props as unknown as { id: string; name: string; description: string };
       // Standard Tiptap mention insertion
       editor
         .chain()
@@ -46,7 +48,11 @@ export function createForceToolSuggestion(projectId: string, onAddTool?: (toolId
         .insertContentAt(range, [
           {
             type: 'forceToolMention',
-            attrs: props,
+            attrs: {
+              id: p.id,
+              label: p.name,
+              description: p.description
+            },
           }
         ])
         .run();
@@ -105,7 +111,7 @@ export function createForceToolSuggestion(projectId: string, onAddTool?: (toolId
             popup[0].hide();
             return true;
           }
-          return (component.ref as MentionListRef)?.onKeyDown(props) || false;
+          return (component.ref as { onKeyDown: (props: SuggestionKeyDownProps) => boolean })?.onKeyDown(props) || false;
         },
 
         onExit() {

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Literal, Dict, Any, Optional
+from typing import List, Literal, Dict, Optional, Union
 
 class AgentConfig(BaseModel):
     id: str
@@ -7,7 +7,7 @@ class AgentConfig(BaseModel):
     system_prompt: str = Field(..., alias="systemPrompt")
     llm_provider: Literal["openai-compatible", "anthropic", "google", "openai", "local", "groq", "gemini"] = Field(..., alias="llmProvider")
     model_id: str = Field(..., alias="modelId")
-    tools: List[dict] = Field(default_factory=list)
+    tools: List[Union[dict, str]] = Field(default_factory=list)
     agent_note: Optional[str] = Field(None, alias="agentNote")
     credentials: Optional[Dict[str, Optional[str]]] = Field(default_factory=dict)
     max_tool_calls: int = Field(1, alias="maxToolCalls")  # -1 = unlimited
@@ -20,7 +20,7 @@ class AgentConfig(BaseModel):
 class NodeConfig(BaseModel):
     id: str
     type: Literal["agent", "condition", "tool", "io_node"]
-    data: Dict[str, Any]
+    data: Dict[str, object]
 
 class EdgeConfig(BaseModel):
     id: str
@@ -29,7 +29,7 @@ class EdgeConfig(BaseModel):
     sourceHandle: Optional[str] = None
     targetHandle: Optional[str] = None
     mode: Literal["sequential", "delegate"] = "delegate"
-    data: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    data: Optional[Dict[str, object]] = Field(default_factory=dict)
 
 class AgentBlueprint(BaseModel):
     id: str
@@ -37,7 +37,7 @@ class AgentBlueprint(BaseModel):
     agents: List[AgentConfig] = Field(default_factory=list)
     nodes: List[NodeConfig] = Field(default_factory=list)
     edges: List[EdgeConfig] = Field(default_factory=list)
-    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    metadata: Optional[Dict[str, object]] = Field(default_factory=dict)
     api_keys: Optional[Dict[str, str]] = Field(default_factory=dict)
 
 class ChatMessage(BaseModel):

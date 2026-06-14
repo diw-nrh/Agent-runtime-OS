@@ -11,3 +11,9 @@ pydantic-settings
 
 langchain-anthropic
 langchain-google-genai
+
+langgraph-checkpoint-postgres
+psycopg-pool
+psycopg[binary]
+mcp
+langchain-mcp-adapters

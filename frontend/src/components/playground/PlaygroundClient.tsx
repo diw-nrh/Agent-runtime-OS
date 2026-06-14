@@ -2,9 +2,10 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { ChatMessage, PlaygroundAgent } from '@/types/playground';
-import { Send, Bot, User, Settings2, Loader2, RefreshCw, ArrowRightLeft } from 'lucide-react';
+import { Settings2, User, Bot, Send, ArrowRightLeft, RefreshCw, Eye, Loader2 } from 'lucide-react';
 import { useSettingsStore } from '@/store/settingsStore';
 import DebuggerPanel from '@/components/canvas/DebuggerPanel';
+import { ApprovalPanelUI } from '@/components/notebook/ApprovalBlockComponent';
 import { StreamLog } from '@/hooks/useDeployBlueprint';
 
 interface BlueprintAgentData {
@@ -115,7 +116,7 @@ export function PlaygroundClient({ blueprint }: PlaygroundClientProps) {
       };
       
       const { getProjectSettings } = useSettingsStore.getState();
-      const { connections } = getProjectSettings(blueprint.id);
+      const { connections, customTools, linkedTools } = getProjectSettings(blueprint.id);
       
       const universalConn = connections.find(c => c.provider === 'openai-compatible' || c.provider === 'local');
       const anthropicConn = connections.find(c => c.provider === 'anthropic');
@@ -133,13 +134,54 @@ export function PlaygroundClient({ blueprint }: PlaygroundClientProps) {
         content: m.content
       }));
 
+      // Enrich tools with customTools and linkedTools from localStorage before sending
+      const enrichedBlueprint = {
+        ...blueprint,
+        agents: blueprint.agents.map(agent => ({
+          ...agent,
+          tools: ((agent.tools as (string | { id: string })[]) || []).map((toolId) => {
+            const idToFind = typeof toolId === 'string' ? toolId : toolId.id;
+            
+            const custom = customTools?.find(t => t.id === idToFind);
+            if (custom) {
+              return {
+                id: custom.id,
+                name: custom.name,
+                type: custom.type,
+                url: custom.config?.url,
+                command: custom.config?.command,
+                args: custom.config?.args,
+                permissions: {
+                  global: custom.globalPermission || 'allow',
+                  tools: custom.toolPermissions || {}
+                }
+              };
+            }
+            
+            const linked = linkedTools?.find(t => t.id === idToFind);
+            if (linked) {
+              return {
+                id: linked.id,
+                isGlobal: true,
+                permissions: {
+                  global: linked.globalPermission || 'allow',
+                  tools: linked.toolPermissions || {}
+                }
+              };
+            }
+            
+            return typeof toolId === 'string' ? { id: toolId, isGlobal: true } : toolId;
+          })
+        }))
+      };
+
       // 1. Send task to Celery
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
       const response = await fetch(`${backendUrl}/api/agent/chat`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          blueprint,
+          blueprint: enrichedBlueprint,
           messages: chatHistory
         })
       });
@@ -191,6 +233,16 @@ export function PlaygroundClient({ blueprint }: PlaygroundClientProps) {
           ));
           setIsStreaming(false);
           eventSource.close();
+        } else if (eventData.status === 'WAITING_FOR_HUMAN') {
+          // Display the Approval Block in the chat
+          setMessages(prev => [...prev, {
+            id: `approval-${Date.now()}`,
+            role: 'approval',
+            content: JSON.stringify(eventData.data || {}),
+            timestamp: new Date()
+          }]);
+          setIsStreaming(false); // We stop streaming, the task is paused
+          eventSource.close();
         }
       };
 
@@ -199,11 +251,11 @@ export function PlaygroundClient({ blueprint }: PlaygroundClientProps) {
         eventSource.close();
       };
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Chat error:", error);
       setMessages(prev => prev.map(msg => 
         msg.id === agentMsgId 
-          ? { ...msg, content: `[Connection Error: ${error.message}]` }
+          ? { ...msg, content: `[Connection Error: ${(error as Error).message}]` }
           : msg
       ));
       setIsStreaming(false);
@@ -213,7 +265,7 @@ export function PlaygroundClient({ blueprint }: PlaygroundClientProps) {
   const handleReset = () => {
     if (eventSourceRef.current) eventSourceRef.current.close();
     setMessages([
-      { id: '1', role: 'agent', content: `Hello! I am ready to assist you. My active agents are: ${blueprint.agents.map((a: any) => a.name).join(', ') || 'None'}. What would you like to build today?`, timestamp: new Date() }
+      { id: '1', role: 'agent', content: `Hello! I am ready to assist you. My active agents are: ${blueprint.agents.map((a: { name: string }) => a.name).join(', ') || 'None'}. What would you like to build today?`, timestamp: new Date() }
     ]);
     setLogs([]);
     setCurrentTaskId(null);
@@ -225,8 +277,8 @@ export function PlaygroundClient({ blueprint }: PlaygroundClientProps) {
     try {
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
       await fetch(`${backendUrl}/api/agent/stop/${currentTaskId}`, { method: 'POST' });
-    } catch (err) {
-      console.error('Failed to stop task:', err);
+    } catch (error: unknown) {
+      console.error('Failed to stop task:', error);
     }
   };
 
@@ -280,7 +332,36 @@ export function PlaygroundClient({ blueprint }: PlaygroundClientProps) {
           </div>
 
           <div className="flex-1 overflow-auto p-6 space-y-6">
-            {messages.map(msg => (
+            {messages.map(msg => {
+              if (msg.role === 'approval') {
+                const interruptData = JSON.parse(msg.content);
+                const attrs = {
+                  taskId: currentTaskId,
+                  toolName: interruptData.tool_name || interruptData.toolName || 'Unknown Tool',
+                  status: 'pending',
+                  args: interruptData.args
+                };
+                
+                // We use the same ApprovalPanelUI component
+                return (
+                  <div key={msg.id} className="w-full max-w-3xl ml-auto mr-auto my-4">
+                    <ApprovalPanelUI 
+                      taskId={attrs.taskId || ''}
+                      toolName={attrs.toolName}
+                      status={attrs.status}
+                      timestamp={interruptData.timestamp}
+                      args={attrs.args}
+                      onUpdate={(newAttrs) => {
+                        // For simplicity, we just trigger a UI update
+                        msg.content = JSON.stringify({ ...interruptData, ...newAttrs });
+                        setMessages([...messages]); // trigger re-render
+                      }}
+                    />
+                  </div>
+                );
+              }
+
+              return (
               <div key={msg.id} className={`flex gap-4 max-w-3xl ${msg.role === 'user' ? 'ml-auto flex-row-reverse' : ''}`}>
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${msg.role === 'user' ? 'bg-muted text-muted-foreground' : 'bg-primary/20 text-primary'}`}>
                   {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
@@ -294,7 +375,7 @@ export function PlaygroundClient({ blueprint }: PlaygroundClientProps) {
                   </p>
                 </div>
               </div>
-            ))}
+            )})}
             <div ref={chatEndRef} />
           </div>
 

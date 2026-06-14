@@ -1,5 +1,5 @@
 import os
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Optional
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
@@ -8,7 +8,7 @@ class OpenRouterAdapter:
     LLM Adapter using OpenRouter (unified API for OpenAI, Anthropic, Google, Meta, etc.).
     This utilizes the OpenAI SDK format provided by langchain-openai.
     """
-    def __init__(self, model_id: str = "openai/gpt-4o-mini", api_key: str = None, base_url: str = None):
+    def __init__(self, model_id: str = "openai/gpt-4o-mini", api_key: Optional[str] = None, base_url: Optional[str] = None):
         self.api_key = api_key
         if not self.api_key:
             raise ValueError("API Key is missing for this provider. Please configure it in your Settings (BYOK).")
@@ -18,7 +18,7 @@ class OpenRouterAdapter:
         
         self.llm = ChatOpenAI(
             model=self.model_id,
-            api_key=self.api_key,
+            api_key=self.api_key, # type: ignore[arg-type]
             base_url=self.base_url,
             default_headers={
                 "HTTP-Referer": "http://localhost:3000",
@@ -49,7 +49,7 @@ class OpenRouterAdapter:
                 lc_messages.append(SystemMessage(content=msg["content"]))
                 
         response = self.llm.invoke(lc_messages)
-        return response.content
+        return str(response.content)
 
     async def agenerate(self, messages: List[Dict[str, str]], system_prompt: Optional[str] = None) -> str:
         """
@@ -68,4 +68,4 @@ class OpenRouterAdapter:
                 lc_messages.append(SystemMessage(content=msg["content"]))
                 
         response = await self.llm.ainvoke(lc_messages)
-        return response.content
+        return str(response.content)

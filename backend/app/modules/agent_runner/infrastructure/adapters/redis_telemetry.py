@@ -1,6 +1,6 @@
 import json
 import redis
-from typing import Dict, Any
+from typing import Dict
 from app.modules.agent_runner.application.ports.telemetry_port import TelemetryPort
 
 class RedisTelemetry(TelemetryPort):
@@ -11,7 +11,7 @@ class RedisTelemetry(TelemetryPort):
     def __init__(self, redis_url: str):
         self._redis_client = redis.from_url(redis_url)
 
-    def publish_debug(self, task_id: str, debug_data: Dict[str, Any]) -> None:
+    def publish_debug(self, task_id: str, debug_data: Dict[str, object]) -> None:
         """Publish debug info to Redis so frontend debugger can show it."""
         try:
             self._redis_client.publish(f"agent_stream_{task_id}", json.dumps({

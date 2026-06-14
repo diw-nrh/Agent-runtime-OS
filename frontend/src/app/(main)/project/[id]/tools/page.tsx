@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, use } from "react";
-import { useSettingsStore, CustomMcpTool } from "@/store/settingsStore";
+import { useSettingsStore } from "@/store/settingsStore";
+import { McpTool, LinkedMcpTool, CustomMcpTool, McpToolConfig } from "@/types";
 import { Plus, Trash2, Edit2, Wrench, Package, Link2, Unlink, Globe, Cpu, Activity, Loader2, CheckCircle2, XCircle, Shield, Hand, Ban, Check, Settings2 } from "lucide-react";
 import { Select } from "@/components/ui/Select";
 
@@ -9,11 +10,11 @@ export default function ProjectToolsPage({ params }: { params: Promise<{ id: str
   const resolvedParams = use(params);
   const projectId = resolvedParams.id;
   
-  const { getProjectSettings, linkTool, unlinkTool, addCustomTool, updateCustomTool, deleteCustomTool } = useSettingsStore();
+  const { getProjectSettings, linkTool, unlinkTool, updateLinkedTool, addCustomTool, updateCustomTool, deleteCustomTool } = useSettingsStore();
   
-  const [linkedTools, setLinkedTools] = useState<any[]>([]);
+  const [linkedTools, setLinkedTools] = useState<LinkedMcpTool[]>([]);
   const [customTools, setCustomTools] = useState<CustomMcpTool[]>([]);
-  const [availableTools, setAvailableTools] = useState<any[]>([]);
+  const [availableTools, setAvailableTools] = useState<LinkedMcpTool[]>([]);
   const [loadingTools, setLoadingTools] = useState(true);
   
   const [showCustomToolModal, setShowCustomToolModal] = useState(false);
@@ -29,9 +30,9 @@ export default function ProjectToolsPage({ params }: { params: Promise<{ id: str
 
   // Permissions Modal State
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
-  const [permissionsTool, setPermissionsTool] = useState<any>(null); // CustomMcpTool or LinkedMcpTool
+  const [permissionsTool, setPermissionsTool] = useState<McpTool | null>(null);
   const [permissionsLoading, setPermissionsLoading] = useState(false);
-  const [permissionsAvailableTools, setPermissionsAvailableTools] = useState<any[]>([]);
+  const [permissionsAvailableTools, setPermissionsAvailableTools] = useState<{name: string, description?: string}[]>([]);
   const [tempPermissions, setTempPermissions] = useState<{ global: string, tools: Record<string, string> }>({ global: 'allow', tools: {} });
 
   const [testStatus, setTestStatus] = useState<Record<string, 'testing' | 'success' | 'error'>>({});
@@ -64,8 +65,10 @@ export default function ProjectToolsPage({ params }: { params: Promise<{ id: str
           setModalTestStatus('success');
           setTimeout(() => setModalTestStatus('idle'), 3000);
         }
-        const toolsStr = data.tools.map((t: any) => `- ${t.name}`).join('\n');
-        alert(`Success! Found ${data.tools.length} tools:\n${toolsStr}`);
+        if (data.tools && Array.isArray(data.tools)) {
+          const toolsStr = data.tools.map((t: {name: string}) => `- ${t.name}`).join('\n');
+          alert(`Success! Found ${data.tools.length} tools:\n${toolsStr}`);
+        }
       }
     } catch (err) {
       if (toolId) setTestStatus(prev => ({ ...prev, [toolId]: 'error' }));
@@ -144,7 +147,7 @@ export default function ProjectToolsPage({ params }: { params: Promise<{ id: str
     }
   };
 
-  const handleOpenPermissionsModal = async (tool: any) => {
+  const handleOpenPermissionsModal = async (tool: McpTool) => {
     setPermissionsTool(tool);
     setTempPermissions({
       global: tool.globalPermission || 'allow',
@@ -154,16 +157,30 @@ export default function ProjectToolsPage({ params }: { params: Promise<{ id: str
     setPermissionsLoading(true);
 
     try {
-      // For global linked tools, config might be inside tool.versions[0].config or similar
-      // but let's assume tool is CustomMcpTool for now
-      const url = tool.type === 'sse' ? tool.config?.url : undefined;
-      const command = tool.type === 'stdio' ? tool.config?.command : undefined;
-      const args = tool.type === 'stdio' ? tool.config?.args : undefined;
+      let toolType = 'stdio';
+      let url: string | undefined;
+      let command: string | undefined;
+      let args: string[] | undefined;
+
+      if ('type' in tool) {
+        toolType = tool.type;
+        url = tool.config?.url;
+        command = tool.config?.command;
+        args = tool.config?.args;
+      } else {
+        if (tool.versions?.[0]?.config) {
+          const config = tool.versions[0].config as McpToolConfig & { type?: string };
+          toolType = config.type || 'stdio';
+          url = config.url;
+          command = config.command;
+          args = config.args;
+        }
+      }
 
       const res = await fetch('http://localhost:8000/api/mcp/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: tool.type, url, command, args })
+        body: JSON.stringify({ type: toolType, url, command, args })
       });
       const data = await res.json();
       if (res.ok && data.tools) {
@@ -186,8 +203,7 @@ export default function ProjectToolsPage({ params }: { params: Promise<{ id: str
     };
     
     // Check if it's a custom tool or linked tool
-    const isCustom = customTools.some(t => t.id === permissionsTool.id);
-    if (isCustom) {
+    if ('type' in permissionsTool) {
       updateCustomTool(projectId, permissionsTool.id, { ...permissionsTool, ...updates });
       setCustomTools(getProjectSettings(projectId).customTools || []);
     } else {
@@ -273,7 +289,8 @@ export default function ProjectToolsPage({ params }: { params: Promise<{ id: str
                   <p className="text-xs text-muted-foreground mt-1 mb-3 line-clamp-2">{tool.description}</p>
                   <div className="mt-auto bg-muted/40 p-2 rounded text-xs font-mono text-muted-foreground flex items-center gap-2">
                     {tool.type === 'sse' ? <Globe size={12}/> : <Cpu size={12}/>}
-                    <span className="truncate">
+                    <span className="font-bold uppercase tracking-wider text-foreground/70">{tool.type}</span>
+                    <span className="truncate border-l pl-2 ml-1">
                       {tool.type === 'sse' ? tool.config.url : `${tool.config.command} ${(tool.config.args||[]).join(' ')}`}
                     </span>
                   </div>
@@ -306,7 +323,7 @@ export default function ProjectToolsPage({ params }: { params: Promise<{ id: str
                 const isLinked = linkedTools.some(t => t.id === tool.id);
                 const linkedToolData = isLinked ? linkedTools.find(t => t.id === tool.id) : null;
                 return (
-                  <div key={tool.id} onDoubleClick={() => isLinked && handleOpenPermissionsModal(linkedToolData)} className={`border rounded-xl p-5 flex flex-col transition-all ${isLinked ? 'bg-primary/5 border-primary/20 shadow-sm cursor-pointer' : 'bg-card opacity-80 hover:opacity-100'}`}>
+                  <div key={tool.id} onDoubleClick={() => isLinked && linkedToolData && handleOpenPermissionsModal(linkedToolData)} className={`border rounded-xl p-5 flex flex-col transition-all ${isLinked ? 'bg-primary/5 border-primary/20 shadow-sm cursor-pointer' : 'bg-card opacity-80 hover:opacity-100'}`}>
                     <div className="flex justify-between items-start mb-2">
                       <div className="flex items-center gap-2">
                         <div className={`p-1.5 rounded-md ${isLinked ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
@@ -316,7 +333,7 @@ export default function ProjectToolsPage({ params }: { params: Promise<{ id: str
                       </div>
                       {isLinked ? (
                         <div className="flex items-center gap-2">
-                          <button onClick={(e) => { e.stopPropagation(); handleOpenPermissionsModal(linkedToolData); }} className="p-1 text-muted-foreground hover:text-amber-500 rounded-md transition-colors" title="Permissions">
+                          <button onClick={(e) => { e.stopPropagation(); if (linkedToolData) handleOpenPermissionsModal(linkedToolData); }} className="p-1 text-muted-foreground hover:text-amber-500 rounded-md transition-colors" title="Permissions">
                             <Shield className="w-4 h-4" />
                           </button>
                           <button 
@@ -342,7 +359,16 @@ export default function ProjectToolsPage({ params }: { params: Promise<{ id: str
                         </button>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{tool.description}</p>
+                    <p className="text-xs text-muted-foreground mt-2 mb-3 line-clamp-2 flex-1">{tool.description}</p>
+                    {tool.versions?.[0]?.config && (
+                      <div className="mt-auto bg-muted/40 p-2 rounded text-xs font-mono text-muted-foreground flex items-center gap-2">
+                        {tool.versions[0].config.url ? <Globe size={12}/> : <Cpu size={12}/>}
+                        <span className="font-bold uppercase tracking-wider text-foreground/70">{tool.versions[0].config.url ? 'SSE' : 'STDIO'}</span>
+                        <span className="truncate border-l pl-2 ml-1">
+                          {tool.versions[0].config.url ? tool.versions[0].config.url : `${tool.versions[0].config.command} ${(tool.versions[0].config.args||[]).join(' ')}`}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 );
               })}

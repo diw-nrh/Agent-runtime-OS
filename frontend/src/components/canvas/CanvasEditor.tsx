@@ -68,8 +68,9 @@ export function CanvasEditor({
 
   // Global event listener for custom edge clicks and handle clicks
   React.useEffect(() => {
-    const handleOpenModal = (e: any) => {
-      const { edgeId, sourceId } = e.detail;
+    const handleOpenModal = (e: Event) => {
+      const customEvent = e as CustomEvent<{ edgeId?: string, sourceId?: string }>;
+      const { edgeId, sourceId } = customEvent.detail;
       setEditEdgeId(edgeId);
       setCreateSourceId(sourceId);
       setEdgeModalOpen(true);
@@ -292,7 +293,7 @@ export function CanvasEditor({
           taskId={taskId} 
           logs={logs} 
           onClose={closeConsole}
-          agents={nodes.filter(n => n.type === 'agent').map(n => ({ id: n.id, name: n.data.name }))}
+          agents={nodes.filter(n => n.type === 'agent').map(n => ({ id: n.id, name: String(n.data.label || 'Unknown Agent') }))}
         />
       )}
 

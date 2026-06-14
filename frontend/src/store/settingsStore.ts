@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { LinkedMcpTool, CustomMcpTool } from '@/types';
 
 export type AIProviderType = 'openai-compatible' | 'anthropic' | 'google' | 'local';
 
@@ -9,20 +10,6 @@ export interface AIConnection {
   provider: AIProviderType; 
   apiKey?: string;     // For OpenAI, Groq
   baseUrl?: string;    // For Local AI
-}
-
-export interface CustomMcpTool {
-  id: string;
-  name: string;
-  description?: string;
-  type: 'stdio' | 'sse';
-  config: {
-    url?: string; // For SSE
-    command?: string; // For Stdio
-    args?: string[]; // For Stdio
-  };
-  globalPermission?: 'allow' | 'ask' | 'block' | 'custom';
-  toolPermissions?: Record<string, 'allow' | 'ask' | 'block'>;
 }
 
 export interface ExecutionSettings {
@@ -43,7 +30,7 @@ export interface Skill {
 
 export interface ProjectSettings {
   connections: AIConnection[];
-  linkedTools: any[]; // Tools linked from the global marketplace (can have permissions)
+  linkedTools: LinkedMcpTool[]; // Tools linked from the global marketplace (can have permissions)
   customTools: CustomMcpTool[]; // Private tools created in this project
   skills?: Skill[]; // Skills written in Markdown
   executionSettings?: ExecutionSettings;
@@ -58,8 +45,8 @@ interface SettingsState {
   deleteConnection: (projectId: string, connectionId: string) => void;
   
   // MCP Tool Actions
-  linkTool: (projectId: string, tool: any) => void;
-  updateLinkedTool: (projectId: string, toolId: string, updates: any) => void;
+  linkTool: (projectId: string, tool: LinkedMcpTool) => void;
+  updateLinkedTool: (projectId: string, toolId: string, updates: Partial<LinkedMcpTool>) => void;
   unlinkTool: (projectId: string, toolId: string) => void;
   
   addCustomTool: (projectId: string, tool: CustomMcpTool) => void;
@@ -87,6 +74,8 @@ const defaultSettings: ProjectSettings = {
     maxIterations: 25,
     enableFaultTolerance: false,
     maxToolCalls: 1,
+    maxHandoffBounces: 1,
+    maxMemoryMessages: 10
   }
 };
 

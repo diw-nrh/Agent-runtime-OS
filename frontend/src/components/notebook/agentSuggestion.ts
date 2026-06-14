@@ -3,11 +3,14 @@ import tippy, { Instance as TippyInstance } from 'tippy.js';
 import { AgentMentionList } from './AgentMentionList';
 import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion';
 import { PluginKey } from '@tiptap/pm/state';
+import { Editor, Range } from '@tiptap/core';
 
 export const agentSuggestionPluginKey = new PluginKey('agentSuggestion');
 
+import { CanvasNode } from '@/types';
+
 export function createAgentSuggestion(
-  availableAgents: any[], 
+  availableAgents: CanvasNode[], 
   onAddAgentConnection?: (targetId: string) => void
 ) {
   return {
@@ -29,7 +32,8 @@ export function createAgentSuggestion(
       return filtered;
     },
 
-    command: ({ editor, range, props }: any) => {
+    command: ({ editor, range, props }: { editor: Editor, range: Range, props: { id: string | null, label?: string | null } }) => {
+      const p = props as unknown as { id: string; label: string; system_prompt: string };
       // We insert our custom agentDelegate node instead of standard mention
       editor
         .chain()
@@ -38,9 +42,9 @@ export function createAgentSuggestion(
           {
             type: 'agentDelegate',
             attrs: {
-              agentId: props.id,
-              agentName: props.label,
-              agentDesc: props.system_prompt
+              agentId: p.id,
+              agentName: p.label,
+              agentDesc: p.system_prompt
             },
           },
           {
@@ -51,7 +55,7 @@ export function createAgentSuggestion(
         .run();
 
       // Trigger side-effect to automatically connect the agent in Canvas
-      if (onAddAgentConnection) {
+      if (onAddAgentConnection && props.id) {
         onAddAgentConnection(props.id);
       }
     },
@@ -99,7 +103,7 @@ export function createAgentSuggestion(
             popup[0].hide();
             return true;
           }
-          return (component.ref as any)?.onKeyDown(props) || false;
+          return (component.ref as { onKeyDown: (props: SuggestionKeyDownProps) => boolean })?.onKeyDown(props) || false;
         },
 
         onExit() {

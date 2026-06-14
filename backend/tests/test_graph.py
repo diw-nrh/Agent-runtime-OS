@@ -1,7 +1,8 @@
 import pytest
 import os
-from app.modules.agent_runner.domain.models import AgentBlueprint, AgentConfig, EdgeConfig
-from app.modules.agent_runner.domain.graph import build_agent_graph
+from unittest.mock import Mock
+from app.modules.agent_runner.domain.models import AgentBlueprint, AgentConfig, EdgeConfig, NodeConfig
+from app.modules.agent_runner.application.builder import build_agent_graph
 
 def test_build_agent_graph_success(monkeypatch):
     """Test that a valid blueprint can successfully build a LangGraph workflow."""
@@ -17,7 +18,11 @@ def test_build_agent_graph_success(monkeypatch):
                 llmProvider="openai",
                 modelId="openai/gpt-4o-mini",
                 tools=[],
-                credentials={"apiKey": "dummy"}
+                credentials={"apiKey": "dummy"},
+                maxToolCalls=1,
+                maxHandoffBounces=1,
+                maxMemoryMessages=10,
+                agentNote=None
             ),
             AgentConfig(
                 id="agent_2",
@@ -26,7 +31,11 @@ def test_build_agent_graph_success(monkeypatch):
                 llmProvider="openai",
                 modelId="openai/gpt-4o-mini",
                 tools=[],
-                credentials={"apiKey": "dummy"}
+                credentials={"apiKey": "dummy"},
+                maxToolCalls=1,
+                maxHandoffBounces=1,
+                maxMemoryMessages=10,
+                agentNote=None
             )
         ],
         nodes=[],
@@ -39,7 +48,9 @@ def test_build_agent_graph_success(monkeypatch):
         ]
     )
 
-    app = build_agent_graph(blueprint)
+    llm_factory_mock = Mock()
+    llm_factory_mock.create_llm.return_value = Mock()
+    app = build_agent_graph(blueprint, llm_factory_mock, None, None, "test") # type: ignore[arg-type]
     
     assert app is not None
     assert hasattr(app, "invoke")
@@ -56,4 +67,4 @@ def test_build_agent_graph_no_agents():
     )
 
     with pytest.raises(ValueError, match="Blueprint must contain at least one agent."):
-        build_agent_graph(blueprint)
+        build_agent_graph(blueprint, None, None, None, "test") # type: ignore[arg-type]

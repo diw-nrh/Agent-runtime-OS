@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, use } from "react";
-import { useSettingsStore, AIConnection, AIProviderType, CustomMcpTool, ExecutionSettings } from "@/store/settingsStore";
+import { useSettingsStore, AIConnection, AIProviderType, ExecutionSettings } from "@/store/settingsStore";
+import { McpTool, LinkedMcpTool, CustomMcpTool } from "@/types";
 import { Server, Plus, Trash2, Edit2, ShieldCheck, Cpu, Package, Link2, Unlink, Wrench, Globe, AlertTriangle, Settings2, Save, Activity, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { Select } from "@/components/ui/Select";
 import { NumberInput } from "@/components/ui/number-input";
@@ -12,7 +13,7 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
   
   const { getProjectSettings, addConnection, updateConnection, deleteConnection, linkTool, unlinkTool, addCustomTool, updateCustomTool, deleteCustomTool, updateExecutionSettings } = useSettingsStore();
   const [connections, setConnections] = useState<AIConnection[]>([]);
-  const [linkedTools, setLinkedTools] = useState<any[]>([]);
+  const [linkedTools, setLinkedTools] = useState<LinkedMcpTool[]>([]);
   const [customTools, setCustomTools] = useState<CustomMcpTool[]>([]);
   const [executionSettings, setExecutionSettings] = useState<ExecutionSettings>({
     enableGlobalLimits: true,
@@ -20,9 +21,10 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
     maxIterations: 25,
     enableFaultTolerance: false,
     maxToolCalls: 1,
+    maxHandoffBounces: 1,
     maxMemoryMessages: 10
   });
-  const [availableTools, setAvailableTools] = useState<any[]>([]);
+  const [availableTools, setAvailableTools] = useState<McpTool[]>([]);
   const [loadingTools, setLoadingTools] = useState(true);
   
   const [showModal, setShowModal] = useState(false);
@@ -97,8 +99,10 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
           setModalTestStatus('success');
           setTimeout(() => setModalTestStatus('idle'), 3000);
         }
-        const toolsStr = data.tools.map((t: any) => `- ${t.name}`).join('\n');
-        alert(`Success! Found ${data.tools.length} tools:\n${toolsStr}`);
+        if (data.tools && Array.isArray(data.tools)) {
+          const toolsStr = data.tools.map((t: { name: string }) => `- ${t.name}`).join('\n');
+          alert(`Success! Found ${data.tools.length} tools:\n${toolsStr}`);
+        }
       }
     } catch (err) {
       if (toolId) setTestStatus(prev => ({ ...prev, [toolId]: 'error' }));

@@ -9,57 +9,32 @@ from app.modules.agent_runner.domain.models import AgentBlueprint
 
 from langchain_core.tools import BaseTool
 
+from langgraph.types import interrupt
+
 def wrap_tool_with_approval(tool: BaseTool, task_id: str) -> BaseTool:
     original_arun = tool._arun
     
     async def wrapped_arun(*args, **kwargs):
-        import redis.asyncio as redis_async
-        import redis
-        import json
-        import os
+        # Suspend the graph execution using LangGraph's native interrupt
+        # This will exit the Celery task safely and save state to Postgres
+        action_dict = interrupt({
+            "type": "WAITING_FOR_HUMAN", 
+            "tool_name": tool.name, 
+            "args": kwargs or args
+        })
         
-        REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-        async_redis = redis_async.from_url(REDIS_URL)
-        sync_redis = redis.from_url(REDIS_URL)
+        # When resumed, action_dict will be the value passed to Command(resume=...)
+        action = action_dict.get("action") if isinstance(action_dict, dict) else action_dict
         
-        channel = f"agent_approval_{task_id}_{tool.name}"
-        pubsub = async_redis.pubsub()
-        await pubsub.subscribe(channel)
-        
-        payload = {
-            "status": "TOOL_APPROVAL_REQUEST",
-            "message": f"Tool {tool.name} requires approval",
-            "data": {
-                "toolName": tool.name,
-                "args": kwargs or args
-            }
-        }
-        
-        sync_redis.publish(f"agent_stream_{task_id}", json.dumps(payload))
-        
-        approved = False
-        try:
-            async for message in pubsub.listen():
-                if message["type"] == "message":
-                    data = json.loads(message["data"])
-                    if data.get("action") == "approve":
-                        approved = True
-                        break
-                    else:
-                        break
-        finally:
-            await pubsub.unsubscribe(channel)
-            await async_redis.aclose()
-            
-        if not approved:
+        if action == "approve":
+            return await original_arun(*args, **kwargs)
+        else:
             return f"Error: Human denied permission to execute tool {tool.name}."
-            
-        return await original_arun(*args, **kwargs)
 
     tool._arun = wrapped_arun
     return tool
 
-async def load_mcp_tools_for_blueprint(blueprint: AgentBlueprint, stack: AsyncExitStack, task_id: str = None) -> dict:
+async def load_mcp_tools_for_blueprint(blueprint: AgentBlueprint, stack: AsyncExitStack, task_id: str | None = None) -> dict:
     """
     Connects to all MCP servers defined in the blueprint and returns a map of tool_id -> list of Langchain tools.
     The AsyncExitStack keeps the connections open while the agent runs.

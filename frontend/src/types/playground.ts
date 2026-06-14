@@ -1,6 +1,6 @@
 export interface ChatMessage {
   id: string;
-  role: 'user' | 'agent' | 'system';
+  role: 'user' | 'agent' | 'system' | 'approval';
   content: string;
   timestamp: Date;
 }

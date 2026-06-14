@@ -1,4 +1,5 @@
-from typing import Dict, Any, Optional
+
+from typing import Dict, Optional
 from app.modules.agent_runner.application.ports.llm_factory_port import LLMFactoryPort
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
@@ -9,7 +10,7 @@ class LangchainLLMFactory(LLMFactoryPort):
     Concrete implementation of LLMFactoryPort.
     Responsible for instantiating the correct Langchain Chat Model based on the provider.
     """
-    def create_llm(self, provider: str, model_id: str, api_key: str, base_url: str, default_headers: Optional[Dict[str, str]] = None) -> Any:
+    def create_llm(self, provider: str, model_id: str, api_key: str, base_url: str, default_headers: Optional[Dict[str, str]] = None) -> object:
         if not default_headers:
             default_headers = {
                 "HTTP-Referer": "http://localhost:3000",
@@ -33,7 +34,7 @@ class LangchainLLMFactory(LLMFactoryPort):
             )
         else: # openai-compatible, openai, local, groq
             if not base_url:
-                if provider == "groq":
+                if provider == "groq" or (api_key and api_key.startswith("gsk_")):
                     base_url = "https://api.groq.com/openai/v1"
                 elif provider == "openai":
                     base_url = "https://api.openai.com/v1"
@@ -42,9 +43,16 @@ class LangchainLLMFactory(LLMFactoryPort):
                 else:
                     base_url = "https://api.openai.com/v1"
             
+            if base_url:
+                from app.core.config import settings
+                base_url = settings.resolve_internal_host(base_url)
+                if provider in ["local", "openai-compatible"]:
+                    base_url = base_url.rstrip("/")
+                    if not base_url.endswith("/v1"):
+                        base_url = f"{base_url}/v1"
+            
             if provider in ["local", "openai-compatible"] and not api_key:
                 api_key = "dummy"
-                
             if not api_key:
                 raise ValueError(f"API Key is missing for OpenAI-Compatible Provider ({provider})")
 

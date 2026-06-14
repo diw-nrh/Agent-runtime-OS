@@ -66,7 +66,7 @@ export default function EdgeConfigModal({
           {!isEditing && (
             <div>
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-2">
-                From: {sourceNode?.data?.label || 'Unknown Agent'}
+                From: {String(sourceNode?.data?.label || 'Unknown Agent')}
               </label>
               <label className="text-sm font-medium block mb-1.5">Connect to Agent</label>
               <Select

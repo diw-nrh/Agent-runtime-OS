@@ -5,7 +5,8 @@ from app.modules.agent_runner.domain.models import AgentBlueprint
 from langchain_core.tools import tool, InjectedToolCallId
 from langchain_core.messages import SystemMessage, ToolMessage
 from langgraph.types import Command
-from typing import Annotated, Dict, Any, Optional
+from typing import Annotated, Dict, Optional
+from langgraph.checkpoint.base import BaseCheckpointSaver
 
 # Ports & Adapters
 from app.modules.agent_runner.application.ports.llm_factory_port import LLMFactoryPort
@@ -42,8 +43,9 @@ def build_agent_graph(
     blueprint: AgentBlueprint, 
     llm_factory: LLMFactoryPort,
     telemetry: Optional[TelemetryPort] = None,
-    mcp_tool_map: dict = None, 
-    task_id: str = None
+    mcp_tool_map: Optional[Dict[str, object]] = None, 
+    task_id: Optional[str] = None,
+    checkpointer: Optional[BaseCheckpointSaver] = None
 ):
     """
     Dynamically builds a LangGraph StateGraph connecting multiple Agents using a Swarm Architecture.
@@ -124,10 +126,11 @@ def build_agent_graph(
         # Map requested tools from blueprint
         requested_tools = []
         for tool_obj in agent.tools:
+            tool_id = None
             if isinstance(tool_obj, dict):
                 tool_id = tool_obj.get("id")
                 if tool_id in mcp_tool_map:
-                    requested_tools.extend(mcp_tool_map[tool_id])
+                    requested_tools.extend(mcp_tool_map.get(tool_id, [])) # type: ignore[arg-type]
             elif isinstance(tool_obj, str):
                 tool_id = tool_obj
                 
@@ -172,7 +175,7 @@ def build_agent_graph(
         # Append agent note and edge instructions to the system prompt
         final_system_prompt = agent.system_prompt
         
-        final_system_prompt += "\n\n## Platform Web Syntax\nPress '/' for commands or type '@' to attach Tools. Use @alias [Agent] to hand off tasks to another Agent."
+        final_system_prompt += "\n\n## Platform Web Syntax\nPress '/' for commands or type '@' to attach Tools. Use @alias to hand off tasks to another Agent. If you see a tool name enclosed in square brackets attached to a message, it means you MUST focus on and execute that specific tool immediately."
         
         if getattr(agent, "agent_note", None) and str(agent.agent_note).strip():
             final_system_prompt += "\n\n## Agent Note\n" + str(agent.agent_note).strip()
@@ -223,13 +226,27 @@ def build_agent_graph(
                 final_system_prompt += f"\n- You must NOT hand off tasks to the same Agent more than {bounce_word}."
             final_system_prompt += "\nOnce you have gathered enough information, stop calling tools and summarize the final answer."
         
+        # Extract all tool names available to this agent (including handoff tools)
+        current_agent_tool_names = [t.name for t in all_rate_limited_tools] if all_rate_limited_tools else []
+        print(f"\n[BUILDER DEBUG] Current Agent Tool Names: {current_agent_tool_names}\n")
+        
+        # Check if user forced a tool in the system prompt
+        import re
+        forced_tool_match = re.search(r'\[(\w+)\]', agent.system_prompt)
+        forced_tool_name = forced_tool_match.group(1) if forced_tool_match else None
+        
+        if forced_tool_name and forced_tool_name not in current_agent_tool_names:
+            forced_tool_name = None
+            
         # Wrap llm with DeterministicToolWrapper (DI approach)
         wrapped_llm = DeterministicToolWrapper(
             llm, 
             task_id=task_id, 
             max_tool_calls=agent.max_tool_calls, 
             max_memory_messages=agent.max_memory_messages,
-            telemetry_publisher=telemetry_publisher
+            telemetry_publisher=telemetry_publisher,
+            tool_names=current_agent_tool_names,
+            forced_tool_name=forced_tool_name
         )
         
         tool_node = ToolNode(all_rate_limited_tools, handle_tool_errors=True) if all_rate_limited_tools else []
@@ -266,4 +283,4 @@ def build_agent_graph(
         
     workflow.set_entry_point(start_nodes[0])
     
-    return workflow.compile()
+    return workflow.compile(checkpointer=checkpointer)

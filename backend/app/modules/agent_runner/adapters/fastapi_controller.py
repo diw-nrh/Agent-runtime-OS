@@ -168,11 +168,22 @@ async def stream_agent_events(task_id: str, request: Request):
 
     return EventSourceResponse(event_generator())
             
+import uuid
+from fastapi import Depends
 from app.modules.agent_runner.domain.models import AgentBlueprint, ChatRequest
+from app.modules.agent_runner.ports.orchestrator_port import OrchestratorPort
+
+def get_orchestrator() -> OrchestratorPort:
+    from app.modules.agent_runner.infrastructure.adapters.celery_orchestrator import CeleryOrchestrator
+    # Future: if os.getenv("ORCHESTRATOR_TYPE") == "temporal": return TemporalOrchestrator()
+    return CeleryOrchestrator()
 
 @router.post("/chat")
-async def chat_with_agent(chat_request: ChatRequest, request: Request):
+async def chat_with_agent(chat_request: ChatRequest, request: Request, orchestrator: OrchestratorPort = Depends(get_orchestrator)):
     try:
+        if not chat_request.blueprint.agents:
+            raise HTTPException(status_code=400, detail="Blueprint must contain at least one agent. Please add an agent to the canvas.")
+
         # Extract BYOK headers
         api_keys = {
             "groq": request.headers.get("x-groq-api-key", ""),
@@ -189,14 +200,18 @@ async def chat_with_agent(chat_request: ChatRequest, request: Request):
             "messages": [m.dict() for m in chat_request.messages]
         }
 
-        # Kick off background job
-        from app.modules.agent_runner.tasks import run_agent_pipeline
-        task = run_agent_pipeline.delay(payload)
+        # Inject trace_id into payload
+        trace_id = request.headers.get("X-Trace-Id", str(uuid.uuid4()))
+        payload["trace_id"] = trace_id
+
+        # Submit task via OrchestratorPort
+        task_id = orchestrator.submit_agent_run(chat_request.blueprint.id, payload)
         
         return {
             "message": "Chat task submitted successfully.",
             "blueprint_id": chat_request.blueprint.id,
-            "task_id": task.id,
+            "task_id": task_id,
+            "trace_id": trace_id,
             "status": "Processing"
         }
     except Exception as e:
@@ -208,10 +223,11 @@ class ApprovalRequest(BaseModel):
     action: Literal["approve", "reject"]
 
 @router.post("/approve")
-async def approve_tool(req: ApprovalRequest):
+async def approve_tool(req: ApprovalRequest, orchestrator: OrchestratorPort = Depends(get_orchestrator)):
     try:
-        channel = f"agent_approval_{req.task_id}_{req.tool_name}"
-        redis_client.publish(channel, json.dumps({"action": req.action}))
+        success = orchestrator.send_signal(req.task_id, req.tool_name, {"action": req.action})
+        if not success:
+            raise Exception("Failed to send approval signal")
         return {"status": "success", "message": f"Tool {req.tool_name} {req.action}d"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -236,7 +252,7 @@ async def test_llm_connection(req: TestConnectionRequest):
             provider=req.provider,
             model_id=req.model,
             api_key=req.api_key,
-            base_url=req.base_url
+            base_url=req.base_url or ""
         )
         
         # Send a simple hello message

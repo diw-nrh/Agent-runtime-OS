@@ -24,7 +24,7 @@ def create_rate_limited_tool(original_tool: BaseTool, max_calls: int) -> BaseToo
         if kwargs:
             return original_tool.invoke(kwargs)
         elif args:
-            return original_tool.invoke(args[0] if len(args) == 1 else args)
+            return original_tool.invoke(args[0] if len(args) == 1 else args) # type: ignore[arg-type]
         else:
             return original_tool.invoke({})
         
@@ -38,7 +38,7 @@ def create_rate_limited_tool(original_tool: BaseTool, max_calls: int) -> BaseToo
         if kwargs:
             return await original_tool.ainvoke(kwargs)
         elif args:
-            return await original_tool.ainvoke(args[0] if len(args) == 1 else args)
+            return await original_tool.ainvoke(args[0] if len(args) == 1 else args) # type: ignore[arg-type]
         else:
             return await original_tool.ainvoke({})
 
@@ -46,7 +46,7 @@ def create_rate_limited_tool(original_tool: BaseTool, max_calls: int) -> BaseToo
     return StructuredTool(
         name=original_tool.name,
         description=original_tool.description,
-        args_schema=original_tool.args_schema,
+        args_schema=original_tool.args_schema, # type: ignore[arg-type]
         func=run_wrapper,
         coroutine=arun_wrapper,
         return_direct=original_tool.return_direct

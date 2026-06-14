@@ -27,6 +27,7 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379/0
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - DATABASE_URL=postgresql://admin:password@postgres:5432/agent_db
     depends_on:
       - redis
       - postgres
@@ -38,6 +39,7 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379/0
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - DATABASE_URL=postgresql://admin:password@postgres:5432/agent_db
     depends_on:
       - redis
       - postgres

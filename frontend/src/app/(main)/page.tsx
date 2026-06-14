@@ -1,17 +1,20 @@
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { AgentBlueprint } from "@/types";
 import Link from "next/link";
 import { Plus, Bot } from "lucide-react";
 import { ProjectCard } from "@/components/dashboard/ProjectCard";
 import { NewProjectButton } from "@/components/dashboard/NewProjectButton";
+
+export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
   // 1. Check Authentication
   const session = await getServerSession(authOptions);
   
   // 2. Fetch User and their Blueprints
-  let blueprints: any[] = [];
+  let blueprints: AgentBlueprint[] = [];
   
   if (session?.user?.email) {
     const user = await prisma.user.findUnique({
@@ -28,7 +31,7 @@ export default async function DashboardPage() {
         orderBy: {
           updatedAt: 'desc'
         }
-      });
+      }) as unknown as AgentBlueprint[];
     }
   } else {
     // Fallback for development without auth: fetch all blueprints
@@ -36,7 +39,7 @@ export default async function DashboardPage() {
       orderBy: {
         updatedAt: 'desc'
       }
-    });
+    }) as unknown as AgentBlueprint[];
   }
 
   return (

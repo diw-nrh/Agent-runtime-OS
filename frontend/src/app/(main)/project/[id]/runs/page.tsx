@@ -1,8 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
-import { RunsViewerClient } from "./RunsViewerClient";
+import { RunsViewerClient, Run } from "./RunsViewerClient";
+import { TraceContentData } from "@/types";
 
-export default async function AuditLogsPage({ params }: { params: { id: string } }) {
+export default async function AuditLogsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   
   const blueprint = await prisma.agentBlueprint.findUnique({
@@ -36,5 +37,13 @@ export default async function AuditLogsPage({ params }: { params: { id: string }
     console.error("Failed to parse blueprint canvasData", e);
   }
 
-  return <RunsViewerClient runs={runs} projectId={id} agents={agents} />;
+  const mappedRuns = runs.map(r => ({
+    ...r,
+    traces: r.traces.map(t => ({
+      ...t,
+      content: t.content as unknown as TraceContentData
+    }))
+  }));
+
+  return <RunsViewerClient runs={mappedRuns as Run[]} projectId={id} agents={agents} />;
 }

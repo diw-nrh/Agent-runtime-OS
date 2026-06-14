@@ -1,13 +1,15 @@
 "use client";
 
 import React, { useEffect } from 'react';
-import { useEditor, EditorContent } from '@tiptap/react';
+import { useEditor, EditorContent, Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Mention from '@tiptap/extension-mention';
+import { CanvasNode } from '@/types';
 import { createMentionSuggestion } from './mentionSuggestion';
 import { createAgentSuggestion } from './agentSuggestion';
 import { AgentDelegateExtension } from './AgentDelegateExtension';
 import { createSkillSuggestion } from './skillSuggestion';
+import { ApprovalBlockExtension } from './ApprovalBlockExtension';
 
 const AgentMention = Mention.extend({ name: 'agentMention' });
 const SkillMention = Mention.extend({ name: 'skillMention' });
@@ -34,8 +36,8 @@ interface NotebookEditorProps {
   initialContent?: string;
   onChange?: (content: string) => void;
   onAddTool?: (toolId: string) => void;
-  editorRef?: React.MutableRefObject<any>;
-  availableAgents?: any[];
+  editorRef?: React.MutableRefObject<Editor | null>;
+  availableAgents?: CanvasNode[];
   onAddAgentConnection?: (targetId: string) => void;
   minimal?: boolean;
   onBlur?: () => void;
@@ -46,6 +48,7 @@ export function NotebookEditor({ projectId, initialContent, onChange, onAddTool,
     extensions: [
       StarterKit,
       AgentDelegateExtension,
+      ApprovalBlockExtension,
       Mention.configure({
         HTMLAttributes: {
           class: 'bg-primary/20 text-primary px-1 rounded-md font-medium cursor-pointer',

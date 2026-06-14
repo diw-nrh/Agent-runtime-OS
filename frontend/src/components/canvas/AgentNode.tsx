@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useSettingsStore } from '@/store/settingsStore';
 import { Select } from '@/components/ui/Select';
 import { AgentNodeProps } from '@/types/canvas';
+import { AgentNodeData, CanvasNode } from '@/types';
 import { NotebookEditor } from '../notebook/Editor';
 import { NumberInput } from '@/components/ui/number-input';
 
@@ -175,7 +176,7 @@ export function AgentNode({ id, data, selected }: AgentNodeProps & { selected?: 
             initialContent={localPrompt}
             onChange={(content) => setLocalPrompt(content)}
             onBlur={handlePromptBlur}
-            availableAgents={getNodes().filter(n => n.id !== id && n.type === 'agent')}
+            availableAgents={getNodes().filter(n => n.id !== id && n.type === 'agent') as CanvasNode[]}
             minimal={true}
           />
         </div>
@@ -199,7 +200,7 @@ export function AgentNode({ id, data, selected }: AgentNodeProps & { selected?: 
                 placeholder="+ Add Tool..."
                 options={availableToolsToAdd.map(tool => ({
                   value: tool.id,
-                  label: tool.type ? `[Private] ${tool.name}` : tool.name
+                  label: ('type' in tool) ? `[Private] ${tool.name}` : tool.name
                 }))}
               />
               

@@ -1,9 +1,10 @@
 import { prisma } from "@/lib/prisma";
+import { CanvasData, CanvasNode, CanvasEdge } from '@/types';
 import { notFound } from "next/navigation";
 import { CanvasLayoutClient } from "@/components/canvas/CanvasLayoutClient";
 
 // Server Component
-export default async function ProjectPage({ params }: { params: { id: string } }) {
+export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   
   // Fetch blueprint from database
@@ -16,27 +17,25 @@ export default async function ProjectPage({ params }: { params: { id: string } }
   }
 
   // Ensure we have valid JSON and extract nodes/edges
-  let initialNodes = [];
-  let initialEdges = [];
+  let initialNodes: CanvasNode[] = [];
+  let initialEdges: CanvasEdge[] = [];
   
-  try {
-    const canvasData = blueprint.canvasData as any;
+  if (blueprint && blueprint.canvasData) {
+    const canvasData = blueprint.canvasData as unknown as CanvasData;
     if (canvasData) {
       if (Array.isArray(canvasData.nodes)) {
-        initialNodes = canvasData.nodes.map((node: any, index: number) => ({
+        initialNodes = canvasData.nodes.map((node: CanvasNode, index: number) => ({
           ...node,
           position: node.position || { x: 100, y: 100 + (index * 150) } // Fallback for old saved data
         }));
       }
       if (Array.isArray(canvasData.edges)) {
-        initialEdges = canvasData.edges.map((edge: any, index: number) => ({
+        initialEdges = canvasData.edges.map((edge: CanvasEdge, index: number) => ({
           ...edge,
           id: edge.id || `fallback-edge-${index}-${edge.source}-${edge.target}`
         }));
       }
     }
-  } catch (e) {
-    console.error("Failed to parse canvasData", e);
   }
 
   return (

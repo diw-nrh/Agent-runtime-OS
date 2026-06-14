@@ -4,6 +4,7 @@ import { SkillMentionList } from './SkillMentionList';
 import { MentionListRef } from '@/types/notebook';
 import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion';
 import { PluginKey } from '@tiptap/pm/state';
+import { Editor, Range } from '@tiptap/core';
 import { useSettingsStore } from '@/store/settingsStore';
 
 export const skillSuggestionPluginKey = new PluginKey('skillSuggestion');
@@ -22,7 +23,8 @@ export function createSkillSuggestion(projectId: string) {
         .slice(0, 5);
     },
 
-    command: ({ editor, range, props }: any) => {
+    command: ({ editor, range, props }: { editor: Editor, range: Range, props: { id: string | null, label?: string | null } }) => {
+      const p = props as unknown as { id: string; name: string };
       editor
         .chain()
         .focus()
@@ -30,8 +32,8 @@ export function createSkillSuggestion(projectId: string) {
           {
             type: 'skillMention',
             attrs: {
-              id: props.id,
-              label: props.label,
+              id: p.id,
+              label: p.name,
             },
           },
           {
@@ -85,7 +87,7 @@ export function createSkillSuggestion(projectId: string) {
             popup[0].hide();
             return true;
           }
-          return (component.ref as MentionListRef)?.onKeyDown(props) || false;
+          return (component.ref as { onKeyDown: (props: SuggestionKeyDownProps) => boolean })?.onKeyDown(props) || false;
         },
 
         onExit() {

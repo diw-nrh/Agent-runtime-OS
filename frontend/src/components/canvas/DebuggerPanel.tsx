@@ -10,7 +10,7 @@ interface DebuggerPanelProps {
   isOverlay?: boolean;
 }
 
-function TraceItem({ trace, renderIcon, formatContent, agents, isDeveloperMode, taskId }: { trace: StreamLog, renderIcon: any, formatContent: any, agents?: {id: string, name: string}[], isDeveloperMode: boolean, taskId: string }) {
+function TraceItem({ trace, renderIcon, formatContent, agents, isDeveloperMode, taskId }: { trace: StreamLog, renderIcon: (type: string) => React.ReactNode, formatContent: (type: string, content: unknown) => React.ReactNode, agents?: {id: string, name: string}[], isDeveloperMode: boolean, taskId: string }) {
   const [showRaw, setShowRaw] = useState(false);
   const [actioned, setActioned] = useState<'approve' | 'reject' | null>(null);
   
@@ -18,7 +18,7 @@ function TraceItem({ trace, renderIcon, formatContent, agents, isDeveloperMode, 
   const type = isApproval ? 'APPROVAL' : (trace.data?.type || 'MESSAGE');
   const rawAgentId = trace.data?.agentId || (isApproval ? 'Security' : 'Agent');
   const agent = agents?.find(a => a.id === rawAgentId);
-  const resolvedName = agent ? (agent.name || (agent as any).data?.label || (agent as any).label || 'Agent') : null;
+  const resolvedName = agent ? (agent.name || (agent as { data?: { label?: string }, label?: string }).data?.label || (agent as { label?: string }).label || 'Agent') : null;
   const agentName = resolvedName ? `${agent!.id} ${resolvedName}` : (rawAgentId.length > 8 ? 'Agent' : rawAgentId);
   
   const rawContent = JSON.stringify(trace.data, null, 2);
@@ -63,7 +63,7 @@ function TraceItem({ trace, renderIcon, formatContent, agents, isDeveloperMode, 
                     await fetch('http://localhost:8000/api/agent/approve', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ task_id: taskId, tool_name: trace.data?.toolName, action: 'approve' })
+                      body: JSON.stringify({ task_id: taskId, tool_name: (trace.data as unknown as Record<string, unknown>)?.toolName, action: 'approve' })
                     });
                   }}
                   className="bg-green-600 hover:bg-green-500 text-white px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1 transition-colors"
@@ -76,7 +76,7 @@ function TraceItem({ trace, renderIcon, formatContent, agents, isDeveloperMode, 
                     await fetch('http://localhost:8000/api/agent/approve', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ task_id: taskId, tool_name: trace.data?.toolName, action: 'reject' })
+                      body: JSON.stringify({ task_id: taskId, tool_name: (trace.data as unknown as Record<string, unknown>)?.toolName, action: 'reject' })
                     });
                   }}
                   className="bg-red-600/80 hover:bg-red-600 text-white px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1 transition-colors"
@@ -116,29 +116,31 @@ export default function DebuggerPanel({ taskId, logs, onClose, agents, isOverlay
     }
   };
 
-  const formatContent = (type: string, content: any) => {
+  const formatContent = (type: string, content: unknown) => {
     if (!content) return "Processing...";
     
     if (type === 'APPROVAL') {
-      return `The agent wants to execute "${content.toolName}".\nArguments:\n${JSON.stringify(content.args, null, 2)}`;
+      const approvalData = content as { toolName?: string; args?: unknown };
+      return `The agent wants to execute "${approvalData.toolName}".\nArguments:\n${JSON.stringify(approvalData.args, null, 2)}`;
     }
     
     if (type === 'TOOL_CALL') {
-      const calls = content.tool_calls || [];
-      return calls.map((c: any) => `Executing ${c.name}...`).join(', ');
+      const calls = (content as { tool_calls?: { name: string }[] }).tool_calls || [];
+      return calls.map((c: { name: string }) => `Executing ${c.name}...`).join(', ');
     }
     
     if (type === 'TOOL_RESULT') {
       if (!isDeveloperMode) return "Data retrieved successfully.";
+      const resultData = content as { content?: string };
       try {
-        const parsed = typeof content.content === 'string' ? JSON.parse(content.content) : content.content;
+        const parsed = typeof resultData.content === 'string' ? JSON.parse(resultData.content) : resultData.content;
         return JSON.stringify(parsed, null, 2);
       } catch {
-        return content.content || JSON.stringify(content);
+        return resultData.content || JSON.stringify(content);
       }
     }
 
-    const result = content.content || JSON.stringify(content);
+    const result = (content as { content?: string }).content || JSON.stringify(content);
     return typeof result === 'string' ? result.trim() : result;
   };
 
@@ -210,7 +212,7 @@ export default function DebuggerPanel({ taskId, logs, onClose, agents, isOverlay
                     // Always filter empty thoughts for UI cleanliness
                     if (type === 'THOUGHT') {
                       if (!content) return false;
-                      const text = typeof content === 'string' ? content : (content as any).content;
+                      const text = typeof content === 'string' ? content : (content as { content?: string }).content;
                       if (typeof text === 'string' && text.trim() === '') return false;
                     }
 

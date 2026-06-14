@@ -4,8 +4,10 @@ import { useState, useEffect, useRef } from "react";
 import { NotebookEditor } from "@/components/notebook/Editor";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useDeployBlueprint } from "@/hooks/useDeployBlueprint";
+import { Editor } from "@tiptap/react";
 import { AlertCircle, Wrench, Bot, Link as LinkIcon, Settings2, ChevronDown, ChevronUp, Network, Plus, Settings, Database, Trash2, FileCode2, Maximize2, Minimize2, ExternalLink, MessageSquare } from "lucide-react";
 import { Node, Edge } from "@xyflow/react";
+import { CanvasNode } from "@/types";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -90,7 +92,7 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
 
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  const editorRef = useRef<any>(null);
+  const editorRef = useRef<Editor | null>(null);
 
   // Global Dialog State for Agent descriptions
   const [agentDialog, setAgentDialog] = useState<{isOpen: boolean; agentName: string; agentDesc: string}>({
@@ -110,11 +112,12 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
   useEffect(() => {
     setIsMounted(true);
     
-    const handleOpenDesc = (e: any) => {
+    const handleOpenDesc = (e: Event) => {
+      const customEvent = e as CustomEvent;
       setAgentDialog({
         isOpen: true,
-        agentName: e.detail.agentName,
-        agentDesc: e.detail.agentDesc
+        agentName: customEvent.detail.agentName,
+        agentDesc: customEvent.detail.agentDesc
       });
     };
     
@@ -329,14 +332,13 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
               onChange={(content) => setSystemPrompt(content)} 
               onAddTool={handleAddTool}
               editorRef={editorRef}
-              availableAgents={allNodes.filter(n => n.id !== selectedAgentId && n.type === 'agent')}
+              availableAgents={allNodes.filter(n => n.id !== selectedAgentId && n.type === 'agent') as unknown as CanvasNode[]}
               onAddAgentConnection={(targetId) => {
                 if (allEdges.some(ed => ed.source === selectedAgentId && ed.target === targetId)) {
                   return; // already exists
                 }
-                const newEdgeId = `edge-${Date.now()}`;
                 setAllEdges(edges => [...edges, {
-                  id: newEdgeId,
+                  id: `edge-${Date.now()}`,
                   source: selectedAgentId,
                   target: targetId,
                   type: 'configurable',
@@ -591,7 +593,7 @@ export function NotebookClient({ projectId, blueprintId, initialNodes = [], init
               <input 
                 type="text" 
                 value={model}
-                onChange={(e) => setModel(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setModel(e.target.value)}
                 disabled={!connectionId && !provider}
                 className="w-full p-2 border rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50" 
                 placeholder="e.g. gpt-4o, claude-3-5-sonnet" 

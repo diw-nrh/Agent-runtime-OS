@@ -2,19 +2,20 @@
 
 import { useState, useEffect } from 'react';
 import { Package, Plus, ChevronRight, Server, Search } from 'lucide-react';
+import { McpToolConfig } from '@/types';
 import { useSettingsStore } from '@/store/settingsStore';
 
-type McpTool = {
+type MarketplaceMcpTool = {
   id: string;
   name: string;
   description: string | null;
   author: { name: string | null; email: string };
-  versions: { version: string; config: any; createdAt: string }[];
+  versions: { version: string; config: McpToolConfig; createdAt: string }[];
   createdAt: string;
 };
 
 export default function McpRegistryPage() {
-  const [tools, setTools] = useState<McpTool[]>([]);
+  const [tools, setTools] = useState<MarketplaceMcpTool[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   

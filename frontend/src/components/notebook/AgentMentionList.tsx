@@ -1,5 +1,6 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
 import { Bot } from 'lucide-react';
+import { SuggestionKeyDownProps } from '@tiptap/suggestion';
 
 export interface AgentMentionItem {
   id: string;
@@ -12,7 +13,7 @@ interface AgentMentionListProps {
   command: (item: AgentMentionItem) => void;
 }
 
-export const AgentMentionList = forwardRef<any, AgentMentionListProps>((props, ref) => {
+export const AgentMentionList = forwardRef<{ onKeyDown: (props: SuggestionKeyDownProps) => boolean }, AgentMentionListProps>((props, ref) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   const selectItem = (index: number) => {

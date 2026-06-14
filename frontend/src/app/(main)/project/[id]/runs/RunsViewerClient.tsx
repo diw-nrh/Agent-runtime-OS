@@ -4,6 +4,7 @@ import { useState } from "react";
 import { format } from "date-fns";
 import { Clock, CheckCircle2, XCircle, Loader2, Wrench, MessageSquare, Brain, FileJson, ChevronRight, Activity, Zap } from "lucide-react";
 import { Select } from "@/components/ui/Select";
+import { TraceContentData, TraceCall } from '@/types';
 
 // Types derived from Prisma
 interface TraceStep {
@@ -11,11 +12,11 @@ interface TraceStep {
   stepIndex: number;
   agentId: string | null;
   type: string;
-  content: any;
+  content: TraceContentData;
   createdAt: Date;
 }
 
-interface Run {
+export interface Run {
   id: string;
   status: string;
   startedAt: Date;
@@ -310,35 +311,35 @@ export function RunsViewerClient({ runs, projectId, agents = [] }: { runs: Run[]
 }
 
 // Sub-component to render beautiful trace payloads with a raw toggle
-function TraceContent({ type, content, showRaw }: { type: string, content: any, showRaw: boolean }) {
+function TraceContent({ type, content, showRaw }: { type: string, content: TraceContentData, showRaw: boolean }) {
   const renderBeautiful = () => {
     try {
       if (type === 'MESSAGE') {
-        const text = content.text || content.content || JSON.stringify(content);
+        const text = (content as { text?: string, content?: string }).text || (content as { text?: string, content?: string }).content || JSON.stringify(content);
         return <div className="whitespace-pre-wrap text-foreground leading-relaxed">{text}</div>;
       }
       
       if (type === 'THOUGHT') {
-        const text = content.text || content.content || JSON.stringify(content);
+        const text = (content as { text?: string, content?: string }).text || (content as { text?: string, content?: string }).content || JSON.stringify(content);
         return <div className="text-muted-foreground italic border-l-2 border-primary/30 pl-4 py-1.5">{text}</div>;
       }
 
       if (type === 'TOOL_CALL') {
-        const calls = content.tool_calls || [];
+        const calls = (content as { tool_calls?: TraceCall[] }).tool_calls || [];
         if (calls.length === 0) return <div className="text-muted-foreground">Calling tool...</div>;
         return (
           <div className="space-y-3">
-            {calls.map((call: any, idx: number) => (
-              <div key={idx} className="bg-muted/20 border border-primary/10 rounded-lg p-3">
-                <div className="font-semibold text-sm flex items-center gap-2 text-foreground mb-3">
-                  <Wrench className="w-4 h-4 text-blue-500" />
-                  Executing: <span className="font-mono text-primary bg-primary/10 px-2 py-0.5 rounded-md border border-primary/20">{call.name}</span>
-                </div>
-                {call.args && Object.keys(call.args).length > 0 && (
+            {calls.map((call: TraceCall, idx: number) => (
+              <div key={idx} className="border border-border/50 rounded p-2 mb-2 bg-muted/20">
+                <div className="font-semibold text-lg text-foreground flex items-center gap-2">
+                <Wrench className="w-5 h-5 text-blue-500" />
+                Executing Tool: <span className="font-mono text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20">{(content as { name?: string }).name || 'Unknown Tool'}</span>
+              </div>
+                {call.inputs && Object.keys(call.inputs).length > 0 && (
                   <div className="bg-background rounded-md border p-2 text-xs overflow-x-auto shadow-sm">
                     <table className="min-w-full text-left">
                       <tbody>
-                        {Object.entries(call.args).map(([key, val]) => (
+                        {Object.entries(call.inputs).map(([key, val]) => (
                           <tr key={key} className="border-b border-border/50 last:border-0 hover:bg-muted/30">
                             <td className="py-1.5 pl-2 pr-4 font-semibold text-muted-foreground w-1/4 align-top">{key}</td>
                             <td className="py-1.5 pr-2 font-mono text-foreground break-all">{typeof val === 'object' ? JSON.stringify(val) : String(val)}</td>
@@ -355,8 +356,8 @@ function TraceContent({ type, content, showRaw }: { type: string, content: any, 
       }
 
       if (type === 'TOOL_RESULT') {
-        const resultName = content.name || "Tool";
-        const resultContent = content.content || content;
+        const resultName = (content as { name?: string }).name || "Tool";
+        const resultContent = (content as { content?: string }).content || content;
         let displayStr = typeof resultContent === 'string' ? resultContent : JSON.stringify(resultContent, null, 2);
         
         return (
@@ -372,7 +373,8 @@ function TraceContent({ type, content, showRaw }: { type: string, content: any, 
       }
 
       if (type === 'ERROR') {
-        return <div className="text-destructive font-medium bg-destructive/10 p-3 rounded-lg border border-destructive/20 whitespace-pre-wrap">{content.message || JSON.stringify(content)}</div>;
+        const errorMsg = (content as { error?: string }).error || (content as { message?: string }).message || JSON.stringify(content);
+        return <div className="text-destructive font-mono bg-destructive/10 p-2 rounded border border-destructive/20">{errorMsg}</div>;
       }
       
     } catch (e) {
@@ -398,7 +400,7 @@ function TraceContent({ type, content, showRaw }: { type: string, content: any, 
   return <>{renderBeautiful()}</>;
 }
 
-function Bot(props: any) {
+function Bot(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}

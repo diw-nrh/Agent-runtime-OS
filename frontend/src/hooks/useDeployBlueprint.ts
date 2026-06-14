@@ -94,18 +94,35 @@ export function useDeployBlueprint() {
               : 'You are a helpful assistant generated from canvas.',
             llmProvider: (conn?.provider || n.data.provider) === 'local' ? 'openai-compatible' : (conn?.provider || n.data.provider || 'openai-compatible'),
             modelId: n.data.model || '',
-            tools: (n.data.tools || []).map((toolId: string) => {
+            tools: ((n.data.tools as string[]) || []).map((toolId: string) => {
               const custom = settings.customTools?.find(t => t.id === toolId);
               if (custom) {
                 return { 
                   id: custom.id, 
                   name: custom.name, 
                   type: custom.type, 
-                  url: custom.url, 
-                  command: custom.command, 
-                  args: custom.args 
+                  url: custom.config?.url, 
+                  command: custom.config?.command, 
+                  args: custom.config?.args,
+                  permissions: {
+                    global: custom.globalPermission || 'allow',
+                    tools: custom.toolPermissions || {}
+                  }
                 };
               }
+              
+              const linked = settings.linkedTools?.find(t => t.id === toolId);
+              if (linked) {
+                return {
+                  id: linked.id,
+                  isGlobal: true,
+                  permissions: {
+                    global: linked.globalPermission || 'allow',
+                    tools: linked.toolPermissions || {}
+                  }
+                };
+              }
+              
               return { id: toolId, isGlobal: true };
             }),
             enableCustomLimits: !!n.data.enableCustomLimits,
@@ -196,16 +213,16 @@ export function useDeployBlueprint() {
               : 'You are a helpful assistant generated from canvas.',
             llmProvider: (conn?.provider || n.data.provider) === 'local' ? 'openai-compatible' : (conn?.provider || n.data.provider || 'openai-compatible'),
             modelId: n.data.model || '',
-            tools: (n.data.tools || []).map((toolId: string) => {
+            tools: ((n.data.tools as string[]) || []).map((toolId: string) => {
               const custom = settings.customTools?.find(t => t.id === toolId);
               if (custom) {
                 return { 
                   id: custom.id, 
                   name: custom.name, 
                   type: custom.type, 
-                  url: custom.config?.url || custom.url, 
-                  command: custom.config?.command || custom.command, 
-                  args: custom.config?.args || custom.args,
+                  url: custom.config?.url, 
+                  command: custom.config?.command, 
+                  args: custom.config?.args,
                   permissions: {
                     global: custom.globalPermission || 'allow',
                     tools: custom.toolPermissions || {}
@@ -218,10 +235,6 @@ export function useDeployBlueprint() {
                   id: linked.id, 
                   isGlobal: true,
                   name: linked.name,
-                  type: linked.type || 'stdio',
-                  url: linked.config?.url,
-                  command: linked.config?.command || linked.command,
-                  args: linked.config?.args || linked.args,
                   permissions: {
                     global: linked.globalPermission || 'allow',
                     tools: linked.toolPermissions || {}
