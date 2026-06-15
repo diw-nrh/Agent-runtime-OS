@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X, Terminal, BrainCircuit, Wrench, MessageSquare, Loader2, Database, AlertTriangle, Code2, ShieldAlert, Check } from 'lucide-react';
 import { StreamLog, TraceData } from '@/hooks/useDeployBlueprint';
+import { getBackendUrl } from '@/lib/utils';
 
 interface DebuggerPanelProps {
   taskId: string;
@@ -60,7 +61,7 @@ function TraceItem({ trace, renderIcon, formatContent, agents, isDeveloperMode, 
                 <button 
                   onClick={async () => {
                     setActioned('approve');
-                    await fetch('http://localhost:8000/api/agent/approve', {
+                    await fetch(`${getBackendUrl()}/api/agent/approve`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ task_id: taskId, tool_name: (trace.data as unknown as Record<string, unknown>)?.toolName, action: 'approve' })
@@ -73,7 +74,7 @@ function TraceItem({ trace, renderIcon, formatContent, agents, isDeveloperMode, 
                 <button 
                   onClick={async () => {
                     setActioned('reject');
-                    await fetch('http://localhost:8000/api/agent/approve', {
+                    await fetch(`${getBackendUrl()}/api/agent/approve`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ task_id: taskId, tool_name: (trace.data as unknown as Record<string, unknown>)?.toolName, action: 'reject' })

@@ -37,9 +37,9 @@ export default async function AuditLogsPage({ params }: { params: Promise<{ id: 
     console.error("Failed to parse blueprint canvasData", e);
   }
 
-  const mappedRuns = runs.map(r => ({
+  const mappedRuns = runs.map((r: any) => ({
     ...r,
-    traces: r.traces.map(t => ({
+    traces: r.traces.map((t: any) => ({
       ...t,
       content: t.content as unknown as TraceContentData
     }))

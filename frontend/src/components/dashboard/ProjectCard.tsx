@@ -11,10 +11,20 @@ interface ProjectCardProps {
     name?: string | null;
     description?: string | null;
     updatedAt: Date;
+    workspace?: {
+      id: string;
+      ownerId: string;
+      owner: {
+        id: string;
+        name: string | null;
+        email: string;
+      };
+    } | null;
   };
+  currentUserId?: string | null;
 }
 
-export function ProjectCard({ blueprint }: ProjectCardProps) {
+export function ProjectCard({ blueprint, currentUserId }: ProjectCardProps) {
   const router = useRouter();
   const [isDeleting, setIsDeleting] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -83,6 +93,13 @@ export function ProjectCard({ blueprint }: ProjectCardProps) {
               <div className="bg-primary/10 text-primary p-2.5 rounded-lg">
                 <Bot className="w-5 h-5" />
               </div>
+
+              {/* Render Shared Collaborator Badge */}
+              {blueprint.workspace && currentUserId && blueprint.workspace.ownerId !== currentUserId && (
+                <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/25 animate-in fade-in zoom-in-95 duration-200">
+                  Shared by {blueprint.workspace.owner.name || blueprint.workspace.owner.email}
+                </span>
+              )}
             </div>
             
             <h2 className="text-lg font-semibold mb-2 line-clamp-1 group-hover:text-primary transition-colors pr-8">

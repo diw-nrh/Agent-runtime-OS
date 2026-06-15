@@ -18,14 +18,53 @@ export async function DELETE(
 
     // In a full production app, we would verify ownership here.
     // For now, we will simply delete the requested blueprint.
-    await prisma.agentBlueprint.delete({
-      where: { id }
+    await prisma.agentBlueprint.update({
+      where: { id },
+      data: { deletedAt: new Date() }
     });
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
     console.error("Error deleting blueprint:", error);
     return NextResponse.json({ success: false, error: error instanceof Error ? error.message : 'Internal Server Error' }, { status: 500 });
+  }
+}
+
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    
+    if (!id) {
+      return NextResponse.json({ success: false, error: 'Blueprint ID is required' }, { status: 400 });
+    }
+
+    const blueprint = await prisma.agentBlueprint.findFirst({
+      where: { id, deletedAt: null },
+      include: {
+        workspace: {
+          select: {
+            id: true,
+            name: true,
+            ownerId: true,
+          }
+        }
+      }
+    });
+
+    if (!blueprint) {
+      return NextResponse.json({ success: false, error: 'Blueprint not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, blueprint });
+  } catch (error: unknown) {
+    console.error("Error fetching blueprint:", error);
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : 'Internal Server Error' },
+      { status: 500 }
+    );
   }
 }
 

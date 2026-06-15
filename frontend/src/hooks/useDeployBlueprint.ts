@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Node, Edge } from '@xyflow/react';
+import { getBackendUrl } from '@/lib/utils';
 import { useSettingsStore } from '@/store/settingsStore';
+import { useToast } from '@/components/ui/Toast';
 
 export interface TraceData {
   stepIndex: number;
@@ -21,11 +23,12 @@ export function useDeployBlueprint() {
   const [isDeploying, setIsDeploying] = useState(false);
   const [taskId, setTaskId] = useState<string | null>(null);
   const [logs, setLogs] = useState<StreamLog[]>([]);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!taskId) return;
 
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+    const backendUrl = getBackendUrl();
     const eventSource = new EventSource(`${backendUrl}/api/agent/stream/${taskId}`);
     
     let isClosing = false;
@@ -34,7 +37,14 @@ export function useDeployBlueprint() {
       const time = new Date().toLocaleTimeString();
       setLogs((prev) => [...prev, { status: data.status, message: data.message, data: data.data, time }]);
       
-      if (data.status === 'COMPLETED' || data.status === 'ERROR') {
+      if (data.status === 'COMPLETED') {
+        console.log('[UI] Deployment completed successfully');
+        toast.success("ดีพลอยเวิร์กโฟลว์ไปยังเอ็นจิ้นสำเร็จเรียบร้อยแล้ว!");
+        isClosing = true;
+        eventSource.close();
+      } else if (data.status === 'ERROR') {
+        console.error(`[Error] Deployment stream error: ${data.message}`);
+        toast.error(`ดีพลอยล้มเหลว: ${data.message}`);
         isClosing = true;
         eventSource.close();
       }
@@ -42,6 +52,8 @@ export function useDeployBlueprint() {
 
     eventSource.onerror = () => {
       if (!isClosing) {
+        console.error('[Error] EventSource connection failed or disconnected');
+        toast.error("การเชื่อมต่อสตรีมล้มเหลวหรือหลุดการเชื่อมต่อ");
         setLogs((prev) => [...prev, { status: 'ERROR', message: 'Connection to stream lost.', time: new Date().toLocaleTimeString() }]);
       }
       eventSource.close();
@@ -51,6 +63,8 @@ export function useDeployBlueprint() {
   }, [taskId]);
 
   const deploy = async (nodes: Node[], edges: Edge[], blueprintId?: string, name?: string, description?: string) => {
+    console.log('[UI] Starting blueprint deployment validation');
+    toast.info("กำลังตรวจสอบข้อมูลความถูกต้อง...");
     setIsDeploying(true);
     setTaskId(null);
     setLogs([]);
@@ -158,6 +172,8 @@ export function useDeployBlueprint() {
         metadata: {}
       };
 
+      console.log('[UI] Sending deployment request to engine');
+      toast.info("กำลังดีพลอยเวิร์กโฟลว์ไปยังเอ็นจิ้น...");
       const response = await fetch('/api/blueprints/deploy', {
         method: 'POST',
         headers: { 
@@ -178,8 +194,12 @@ export function useDeployBlueprint() {
       setTaskId(data.taskId);
     } catch (err: unknown) {
       if (err instanceof Error) {
+        console.error(`[Error] Deployment failed: ${err.message}`);
+        toast.error(`Failed to deploy: ${err.message}`);
         setLogs(prev => [...prev, {status: 'ERROR', message: `Failed to deploy: ${err.message}`, time: new Date().toLocaleTimeString()}]);
       } else {
+        console.error('[Error] Deployment failed with unknown error');
+        toast.error("Failed to deploy: Unknown error");
         setLogs(prev => [...prev, {status: 'ERROR', message: `Failed to deploy: Unknown error`, time: new Date().toLocaleTimeString()}]);
       }
       setIsDeploying(false);
@@ -187,6 +207,8 @@ export function useDeployBlueprint() {
   };
 
   const saveBlueprint = async (nodes: Node[], edges: Edge[], blueprintId?: string, name?: string, description?: string) => {
+    console.log('[UI] Initiating save blueprint');
+    toast.info("กำลังบันทึกเวิร์กสเปซ...");
     setIsDeploying(true); // Reusing the deploying state for loading UI
     
     try {
@@ -288,11 +310,18 @@ export function useDeployBlueprint() {
         throw new Error(`Save error: ${data.error}`);
       }
       
+      console.log('[UI] Blueprint saved successfully');
+      toast.success("บันทึกเวิร์กสเปซสำเร็จแล้ว");
       // Optional: show a quick success toast or log
       setLogs(prev => [...prev, {status: 'SUCCESS', message: 'Blueprint saved successfully.', time: new Date().toLocaleTimeString()}]);
     } catch (err: unknown) {
       if (err instanceof Error) {
+        console.error(`[Error] Save blueprint failed: ${err.message}`);
+        toast.error(`บันทึกเวิร์กสเปซล้มเหลว: ${err.message}`);
         setLogs(prev => [...prev, {status: 'ERROR', message: `Failed to save: ${err.message}`, time: new Date().toLocaleTimeString()}]);
+      } else {
+        console.error('[Error] Save blueprint failed with unknown error');
+        toast.error("บันทึกเวิร์กสเปซล้มเหลว: Unknown error");
       }
     } finally {
       setIsDeploying(false);
@@ -306,7 +335,7 @@ export function useDeployBlueprint() {
 
   const stopDeployment = async (taskId: string) => {
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+      const backendUrl = getBackendUrl();
       await fetch(`${backendUrl}/api/agent/stop/${taskId}`, { method: 'POST' });
       // Logic to close EventSource would be here if it's stored in a ref
       setTaskId(null);

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { NodeViewWrapper, NodeViewProps } from '@tiptap/react';
+import { getBackendUrl } from '@/lib/utils';
 import { Check, X, ShieldAlert, Loader2 } from 'lucide-react';
 
 export const ApprovalPanelUI: React.FC<{
@@ -17,7 +18,7 @@ export const ApprovalPanelUI: React.FC<{
     try {
       // The Next.js API endpoint for approving/rejecting tools
       // This will call the FastAPI backend to send the signal to Celery
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+      const backendUrl = getBackendUrl();
       const res = await fetch(`${backendUrl}/api/agent/approve`, {
         method: 'POST',
         headers: {
