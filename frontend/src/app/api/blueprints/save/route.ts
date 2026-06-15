@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     }
 
     let workspace = await prisma.workspace.findFirst({
-      where: { ownerId: user.id }
+      where: { ownerId: user.id, deletedAt: null }
     });
 
     if (!workspace) {

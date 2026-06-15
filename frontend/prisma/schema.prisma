@@ -7,29 +7,34 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  name      String?
-  role      String   @default("USER")
+  id          String            @id @default(uuid())
+  email       String            @unique
+  password    String
+  name        String?
+  role        String            @default("USER")
   
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
 
-  workspaces Workspace[]
-  mcpTools   McpTool[]
+  workspaces  Workspace[]
+  mcpTools    McpTool[]
+  memberships WorkspaceMember[]
 }
 
 model Workspace {
-  id        String   @id @default(uuid())
-  name      String
-  ownerId   String
-  owner     User     @relation(fields: [ownerId], references: [id])
+  id          String            @id @default(uuid())
+  name        String
+  ownerId     String
+  owner       User              @relation(fields: [ownerId], references: [id])
   
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  deletedAt   DateTime?
 
-  blueprints AgentBlueprint[]
+  blueprints  AgentBlueprint[]
+  members     WorkspaceMember[]
+
+  @@index([deletedAt])
 }
 
 model AgentBlueprint {
@@ -44,8 +49,11 @@ model AgentBlueprint {
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
   
   runs        AgentExecutionRun[]
+
+  @@index([deletedAt])
 }
 
 model McpTool {
@@ -61,6 +69,9 @@ model McpTool {
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@index([deletedAt])
 }
 
 model McpToolVersion {
@@ -98,5 +109,78 @@ model AgentTraceStep {
   content     Json     // Detail payload
   
   createdAt   DateTime @default(now())
+}
+
+enum WorkspaceRole {
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum WorkspaceMemberStatus {
+  PENDING
+  ACTIVE
+  REJECTED
+}
+
+model WorkspaceMember {
+  id          String                @id @default(uuid())
+  workspaceId String
+  workspace   Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        WorkspaceRole         @default(MEMBER)
+  status      WorkspaceMemberStatus @default(PENDING)
+  joinedAt    DateTime              @default(now())
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId])
+  @@index([userId])
+}
+
+model checkpoint_blobs {
+  thread_id     String
+  checkpoint_ns String @default("")
+  channel       String
+  version       String
+  type          String
+  blob          Bytes?
+
+  @@id([thread_id, checkpoint_ns, channel, version])
+  @@ignore
+}
+
+model checkpoint_migrations {
+  v Int @id
+
+  @@ignore
+}
+
+model checkpoint_writes {
+  thread_id     String
+  checkpoint_ns String @default("")
+  checkpoint_id String
+  task_id       String
+  idx           Int
+  channel       String
+  type          String?
+  blob          Bytes
+  task_path     String @default("")
+
+  @@id([thread_id, checkpoint_ns, checkpoint_id, task_id, idx])
+  @@ignore
+}
+
+model checkpoints {
+  thread_id            String
+  checkpoint_ns        String  @default("")
+  checkpoint_id        String
+  parent_checkpoint_id String?
+  type                 String?
+  checkpoint           Json
+  metadata             Json
+
+  @@id([thread_id, checkpoint_ns, checkpoint_id])
+  @@ignore
 }
 

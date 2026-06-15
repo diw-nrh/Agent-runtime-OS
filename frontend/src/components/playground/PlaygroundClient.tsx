@@ -5,6 +5,7 @@ import { ChatMessage, PlaygroundAgent } from '@/types/playground';
 import { Settings2, User, Bot, Send, ArrowRightLeft, RefreshCw, Eye, Loader2 } from 'lucide-react';
 import { useSettingsStore } from '@/store/settingsStore';
 import DebuggerPanel from '@/components/canvas/DebuggerPanel';
+import { getBackendUrl } from '@/lib/utils';
 import { ApprovalPanelUI } from '@/components/notebook/ApprovalBlockComponent';
 import { StreamLog } from '@/hooks/useDeployBlueprint';
 
@@ -176,7 +177,7 @@ export function PlaygroundClient({ blueprint }: PlaygroundClientProps) {
       };
 
       // 1. Send task to Celery
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+      const backendUrl = getBackendUrl();
       const response = await fetch(`${backendUrl}/api/agent/chat`, {
         method: 'POST',
         headers,
@@ -275,7 +276,7 @@ export function PlaygroundClient({ blueprint }: PlaygroundClientProps) {
   const handleStop = async () => {
     if (!currentTaskId) return;
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+      const backendUrl = getBackendUrl();
       await fetch(`${backendUrl}/api/agent/stop/${currentTaskId}`, { method: 'POST' });
     } catch (error: unknown) {
       console.error('Failed to stop task:', error);

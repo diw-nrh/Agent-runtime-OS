@@ -41,7 +41,7 @@ export async function POST(req: Request) {
     }
 
     // Create the tool and its first version (1.0.0) in a transaction
-    const tool = await prisma.$transaction(async (tx) => {
+    const tool = await prisma.$transaction(async (tx: any) => {
       const newTool = await tx.mcpTool.create({
         data: {
           name,

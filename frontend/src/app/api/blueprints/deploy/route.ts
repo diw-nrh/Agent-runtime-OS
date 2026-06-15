@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     }
 
     let workspace = await prisma.workspace.findFirst({
-      where: { ownerId: user.id }
+      where: { ownerId: user.id, deletedAt: null }
     });
 
     if (!workspace) {
@@ -89,7 +89,7 @@ export async function POST(request: Request) {
     const globalToolsMap = new Map();
     if (globalToolIds.size > 0) {
       const globalTools = await prisma.mcpTool.findMany({
-        where: { id: { in: Array.from(globalToolIds) } },
+        where: { id: { in: Array.from(globalToolIds) }, deletedAt: null },
         include: {
           versions: {
             orderBy: { createdAt: 'desc' },
@@ -98,7 +98,7 @@ export async function POST(request: Request) {
         }
       });
       
-      globalTools.forEach(tool => {
+      globalTools.forEach((tool: any) => {
         if (tool.versions && tool.versions.length > 0) {
           const config = tool.versions[0].config as unknown as McpToolConfig & { type?: string };
           globalToolsMap.set(tool.id, {

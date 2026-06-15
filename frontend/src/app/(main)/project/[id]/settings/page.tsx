@@ -3,13 +3,16 @@
 import { useEffect, useState, use } from "react";
 import { useSettingsStore, AIConnection, AIProviderType, ExecutionSettings } from "@/store/settingsStore";
 import { McpTool, LinkedMcpTool, CustomMcpTool } from "@/types";
-import { Server, Plus, Trash2, Edit2, ShieldCheck, Cpu, Package, Link2, Unlink, Wrench, Globe, AlertTriangle, Settings2, Save, Activity, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Server, Plus, Trash2, Edit2, ShieldCheck, Cpu, Package, Link2, Unlink, Wrench, Globe, AlertTriangle, Settings2, Save, Activity, Loader2, CheckCircle2, XCircle, Users, Copy, Check } from "lucide-react";
 import { Select } from "@/components/ui/Select";
 import { NumberInput } from "@/components/ui/number-input";
+import { getBackendUrl } from "@/lib/utils";
+import { useToast } from "@/components/ui/Toast";
 
 export default function ProjectSettingsPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const projectId = resolvedParams.id;
+  const { toast } = useToast();
   
   const { getProjectSettings, addConnection, updateConnection, deleteConnection, linkTool, unlinkTool, addCustomTool, updateCustomTool, deleteCustomTool, updateExecutionSettings } = useSettingsStore();
   const [connections, setConnections] = useState<AIConnection[]>([]);
@@ -36,6 +39,17 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
   const [apiKey, setApiKey] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
 
+  // Collaborators Tab State
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
+  const [workspaceOwnerId, setWorkspaceOwnerId] = useState<string | null>(null);
+  const [members, setMembers] = useState<any[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<'MEMBER' | 'ADMIN'>('MEMBER');
+  const [inviting, setInviting] = useState(false);
+  const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
+  const [copiedWorkspaceId, setCopiedWorkspaceId] = useState(false);
+
   useEffect(() => {
     // Load connections, linked tools, and execution settings
     const projSettings = getProjectSettings(projectId);
@@ -56,7 +70,41 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
       })
       .catch(console.error)
       .finally(() => setLoadingTools(false));
+
+    // Fetch blueprint workspace mapping
+    fetch(`/api/blueprints/${projectId}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.blueprint) {
+          setWorkspaceId(data.blueprint.workspaceId);
+          setWorkspaceOwnerId(data.blueprint.workspace?.ownerId || null);
+        }
+      })
+      .catch(console.error);
   }, [projectId, getProjectSettings, showModal]);
+
+  const fetchMembers = async (wId: string) => {
+    setLoadingMembers(true);
+    try {
+      const res = await fetch(`/api/workspaces/${wId}/members`);
+      const data = await res.json();
+      if (data.success && data.members) {
+        setMembers(data.members);
+      } else {
+        console.error("Failed to load members:", data.error || data.message);
+      }
+    } catch (err) {
+      console.error("Failed to fetch workspace members:", err);
+    } finally {
+      setLoadingMembers(false);
+    }
+  };
+
+  useEffect(() => {
+    if (workspaceId) {
+      fetchMembers(workspaceId);
+    }
+  }, [workspaceId]);
 
   const [showCustomToolModal, setShowCustomToolModal] = useState(false);
   const [editingCustomToolId, setEditingCustomToolId] = useState<string | null>(null);
@@ -80,7 +128,7 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
         setModalTestStatus('testing');
       }
       
-      const res = await fetch('http://localhost:8000/api/mcp/test', {
+      const res = await fetch(`${getBackendUrl()}/api/mcp/test`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type, url: type === 'sse' ? url : undefined, command: type === 'stdio' ? command : undefined, args: type === 'stdio' ? args : undefined })
@@ -90,7 +138,7 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
       if (!res.ok) {
         if (toolId) setTestStatus(prev => ({ ...prev, [toolId]: 'error' }));
         else setModalTestStatus('error');
-        alert("Connection Failed: " + (data.detail || "Unknown error"));
+        toast.error("Connection Failed: " + (data.detail || "Unknown error"));
       } else {
         if (toolId) {
           setTestStatus(prev => ({ ...prev, [toolId]: 'success' }));
@@ -101,13 +149,13 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
         }
         if (data.tools && Array.isArray(data.tools)) {
           const toolsStr = data.tools.map((t: { name: string }) => `- ${t.name}`).join('\n');
-          alert(`Success! Found ${data.tools.length} tools:\n${toolsStr}`);
+          toast.success(`Success! Found ${data.tools.length} tools:\n${toolsStr}`);
         }
       }
     } catch (err) {
       if (toolId) setTestStatus(prev => ({ ...prev, [toolId]: 'error' }));
       else setModalTestStatus('error');
-      alert("Failed to reach backend to test MCP connection.");
+      toast.error("Failed to reach backend to test MCP connection.");
     }
   };
 
@@ -116,24 +164,24 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
 
   const testAiConnection = async () => {
     if (!connTestModel) {
-      alert("Please enter a Test Model Name before testing.");
+      toast.error("Please enter a Test Model Name before testing.");
       return;
     }
     
     // Validate inputs based on provider
     if ((provider === 'openai-compatible' || provider === 'local') && !baseUrl) {
-      alert("Base URL is required for this provider.");
+      toast.error("Base URL is required for this provider.");
       return;
     }
     
     if (provider !== 'openai-compatible' && provider !== 'local' && !apiKey) {
-      alert("API Key is required for this provider.");
+      toast.error("API Key is required for this provider.");
       return;
     }
     
     try {
       setConnTestStatus('testing');
-      const res = await fetch('http://localhost:8000/api/agent/test-connection', {
+      const res = await fetch(`${getBackendUrl()}/api/agent/test-connection`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -147,15 +195,15 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
       
       if (!res.ok) {
         setConnTestStatus('error');
-        alert("Connection Failed:\n\n" + (data.detail || "Unknown error"));
+        toast.error("Connection Failed: " + (data.detail || "Unknown error"));
       } else {
         setConnTestStatus('success');
         setTimeout(() => setConnTestStatus('idle'), 3000);
-        alert(`Success! Model responded:\n\n"${data.message}"`);
+        toast.success(`Success! Model responded: "${data.message}"`);
       }
     } catch (err) {
       setConnTestStatus('error');
-      alert("Failed to reach backend to test AI connection.");
+      toast.error("Failed to reach backend to test AI connection.");
     }
   };
 
@@ -201,6 +249,7 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
       addCustomTool(projectId, newTool);
     }
     
+    toast.success("บันทึกข้อมูลเครื่องมือสำเร็จแล้ว");
     setCustomTools(getProjectSettings(projectId).customTools || []);
     setShowCustomToolModal(false);
   };
@@ -208,7 +257,91 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
   const handleDeleteCustomTool = (id: string) => {
     if (confirm("Delete this custom tool?")) {
       deleteCustomTool(projectId, id);
+      toast.success("ลบเครื่องมือสำเร็จแล้ว");
       setCustomTools(getProjectSettings(projectId).customTools || []);
+    }
+  };
+
+  const handleInviteCollaborator = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!workspaceId || !inviteEmail) return;
+
+    setInviting(true);
+    try {
+      const res = await fetch(`/api/workspaces/${workspaceId}/members`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: inviteEmail, role: inviteRole })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success("Collaborator invited successfully!");
+        setInviteEmail("");
+        fetchMembers(workspaceId);
+      } else {
+        toast.error(data.error || "Failed to invite collaborator");
+      }
+    } catch (err) {
+      toast.error("Error inviting collaborator.");
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  const handleRemoveCollaborator = async (userId: string) => {
+    if (!workspaceId) return;
+    if (!confirm("Are you sure you want to remove this collaborator?")) return;
+
+    setRemovingMemberId(userId);
+    try {
+      const res = await fetch(`/api/workspaces/${workspaceId}/members?userId=${userId}`, {
+        method: "DELETE"
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success("Collaborator removed successfully!");
+        fetchMembers(workspaceId);
+      } else {
+        toast.error(data.error || "Failed to remove collaborator");
+      }
+    } catch (err) {
+      toast.error("Error removing collaborator.");
+    } finally {
+      setRemovingMemberId(null);
+    }
+  };
+
+  const fallbackCopyText = (text: string) => {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      toast.success("คัดลอก Workspace ID เรียบร้อยแล้ว");
+      setCopiedWorkspaceId(true);
+      setTimeout(() => setCopiedWorkspaceId(false), 2000);
+    } catch (err) {
+      toast.error("ไม่สามารถคัดลอกได้");
+      console.error("Fallback copy failed:", err);
+    }
+    document.body.removeChild(textArea);
+  };
+
+  const handleCopyWorkspaceId = () => {
+    if (!workspaceId) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(workspaceId)
+        .then(() => {
+          toast.success("คัดลอก Workspace ID เรียบร้อยแล้ว");
+          setCopiedWorkspaceId(true);
+          setTimeout(() => setCopiedWorkspaceId(false), 2000);
+        })
+        .catch(() => fallbackCopyText(workspaceId));
+    } else {
+      fallbackCopyText(workspaceId);
     }
   };
 
@@ -265,21 +398,23 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
       addConnection(projectId, newConn);
     }
     
+    toast.success("บันทึกข้อมูลผู้ให้บริการ AI สำเร็จแล้ว");
     setShowModal(false);
   };
 
   const handleDelete = (id: string) => {
     if (confirm("Are you sure you want to delete this connection? Workflows using it will fail.")) {
       deleteConnection(projectId, id);
+      toast.success("ลบผู้ให้บริการ AI สำเร็จแล้ว");
       setConnections(connections.filter(c => c.id !== id));
     }
   };
 
-  const [activeTab, setActiveTab] = useState<'connections' | 'tools' | 'limits'>('connections');
+  const [activeTab, setActiveTab] = useState<'connections' | 'tools' | 'limits' | 'collaborators'>('connections');
 
   const handleSaveExecutionSettings = () => {
     updateExecutionSettings(projectId, executionSettings);
-    alert("Execution settings saved successfully.");
+    toast.success("บันทึกการตั้งค่าขีดจำกัดการรันสำเร็จแล้ว");
   };
 
   return (
@@ -302,6 +437,14 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
           >
             <Settings2 size={16} /> Execution & Limits
             {activeTab === 'limits' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-t-md" />}
+          </button>
+
+          <button 
+            className={`px-4 py-3 font-medium text-sm transition-colors relative flex items-center gap-2 ${activeTab === 'collaborators' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+            onClick={() => setActiveTab('collaborators')}
+          >
+            <Users size={16} /> Collaborators
+            {activeTab === 'collaborators' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-t-md" />}
           </button>
         </div>
       </div>
@@ -598,6 +741,139 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
                   </label>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'collaborators' && (
+        <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4 mb-8">
+            <div className="max-w-2xl">
+              <h2 className="text-2xl font-bold tracking-tight text-foreground">Collaborators</h2>
+              <p className="text-muted-foreground mt-2 leading-relaxed text-sm">
+                Manage members and access permissions for this workspace. Share your Workspace ID to allow collaborators to join your projects.
+              </p>
+              {workspaceId && (
+                <div className="flex items-center gap-2 mt-3 p-2.5 bg-white/5 border border-white/10 rounded-lg font-mono text-xs text-muted-foreground select-all w-fit">
+                  <span className="text-foreground font-semibold">Workspace ID:</span> {workspaceId}
+                  <button
+                    onClick={handleCopyWorkspaceId}
+                    className="p-1 hover:bg-white/10 text-muted-foreground hover:text-foreground rounded transition-colors ml-1"
+                    title="Copy Workspace ID"
+                  >
+                    {copiedWorkspaceId ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-500 animate-in zoom-in duration-100" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            {/* Invite Form */}
+            <div className="glass-panel rounded-xl p-6 shadow-sm border border-white/10 bg-white/5">
+              <h3 className="font-semibold text-lg text-foreground mb-4">Invite Collaborator</h3>
+              <form onSubmit={handleInviteCollaborator} className="flex flex-col sm:flex-row gap-4 items-end">
+                <div className="flex-1 w-full">
+                  <label className="block text-sm font-semibold text-foreground mb-2">User Email</label>
+                  <input
+                    type="email"
+                    required
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    placeholder="collaborator@example.com"
+                    className="w-full px-3 py-2 border border-white/15 rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm placeholder:text-muted-foreground"
+                  />
+                </div>
+                <div className="w-full sm:w-48">
+                  <label className="block text-sm font-semibold text-foreground mb-2">Role</label>
+                  <Select
+                    value={inviteRole}
+                    onChange={(val) => setInviteRole(val as 'MEMBER' | 'ADMIN')}
+                    options={[
+                      { value: "MEMBER", label: "Member" },
+                      { value: "ADMIN", label: "Admin" }
+                    ]}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={inviting || !inviteEmail}
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-md font-medium hover:bg-primary/90 transition-all shadow-sm shrink-0 whitespace-nowrap text-sm disabled:opacity-50"
+                >
+                  {inviting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                  Invite
+                </button>
+              </form>
+            </div>
+
+            {/* Members List */}
+            <div className="glass-panel rounded-xl overflow-hidden border border-white/10 bg-white/5 shadow-sm">
+              <div className="p-6 border-b border-white/10">
+                <h3 className="font-semibold text-lg text-foreground">Current Members</h3>
+              </div>
+              {loadingMembers ? (
+                <div className="p-8 text-center text-muted-foreground flex justify-center items-center gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                  Loading members...
+                </div>
+              ) : members.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground">
+                  No collaborators added yet.
+                </div>
+              ) : (
+                <div className="divide-y divide-white/5">
+                  {members.map((member) => (
+                    <div key={member.id} className="flex items-center justify-between p-6 hover:bg-white/[0.02] transition-colors">
+                      <div className="min-w-0 flex-1 pr-4">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-sm truncate text-foreground">
+                            {member.user.name || "Unnamed User"}
+                          </p>
+                          {workspaceOwnerId === member.user.id && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-500/10 text-amber-500 border border-amber-500/25">
+                              Owner
+                            </span>
+                          )}
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border capitalize ${
+                            member.status === 'ACTIVE' 
+                              ? 'bg-green-500/10 text-green-500 border-green-500/25' 
+                              : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/25'
+                          }`}>
+                            {member.status.toLowerCase()}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1 truncate">
+                          {member.user.email}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="text-xs font-medium bg-white/5 border border-white/10 px-2.5 py-1 rounded-md uppercase text-foreground">
+                          {member.role}
+                        </span>
+                        {workspaceOwnerId !== member.user.id && (
+                          <button
+                            onClick={() => handleRemoveCollaborator(member.user.id)}
+                            disabled={removingMemberId === member.user.id}
+                            className="p-1.5 text-muted-foreground hover:text-destructive rounded-md transition-colors disabled:opacity-50"
+                            title="Remove collaborator"
+                          >
+                            {removingMemberId === member.user.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -5,6 +5,7 @@ import { useSettingsStore } from "@/store/settingsStore";
 import { McpTool, LinkedMcpTool, CustomMcpTool, McpToolConfig } from "@/types";
 import { Plus, Trash2, Edit2, Wrench, Package, Link2, Unlink, Globe, Cpu, Activity, Loader2, CheckCircle2, XCircle, Shield, Hand, Ban, Check, Settings2 } from "lucide-react";
 import { Select } from "@/components/ui/Select";
+import { getBackendUrl } from "@/lib/utils";
 
 export default function ProjectToolsPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -46,7 +47,7 @@ export default function ProjectToolsPage({ params }: { params: Promise<{ id: str
         setModalTestStatus('testing');
       }
       
-      const res = await fetch('http://localhost:8000/api/mcp/test', {
+      const res = await fetch(`${getBackendUrl()}/api/mcp/test`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type, url: type === 'sse' ? url : undefined, command: type === 'stdio' ? command : undefined, args: type === 'stdio' ? args : undefined })
@@ -177,7 +178,7 @@ export default function ProjectToolsPage({ params }: { params: Promise<{ id: str
         }
       }
 
-      const res = await fetch('http://localhost:8000/api/mcp/test', {
+      const res = await fetch(`${getBackendUrl()}/api/mcp/test`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: toolType, url, command, args })

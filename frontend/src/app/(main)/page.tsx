@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Plus, Bot } from "lucide-react";
 import { ProjectCard } from "@/components/dashboard/ProjectCard";
 import { NewProjectButton } from "@/components/dashboard/NewProjectButton";
+import { JoinWorkspaceModal } from "@/components/dashboard/JoinWorkspaceModal";
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +16,7 @@ export default async function DashboardPage() {
   
   // 2. Fetch User and their Blueprints
   let blueprints: AgentBlueprint[] = [];
+  let currentUserId: string | null = null;
   
   if (session?.user?.email) {
     const user = await prisma.user.findUnique({
@@ -22,10 +24,35 @@ export default async function DashboardPage() {
     });
 
     if (user) {
+      currentUserId = user.id;
       blueprints = await prisma.agentBlueprint.findMany({
         where: {
           workspace: {
-            ownerId: user.id
+            OR: [
+              { ownerId: user.id },
+              {
+                members: {
+                  some: {
+                    userId: user.id,
+                    status: 'ACTIVE'
+                  }
+                }
+              }
+            ]
+          },
+          deletedAt: null
+        },
+        include: {
+          workspace: {
+            include: {
+              owner: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true
+                }
+              }
+            }
           }
         },
         orderBy: {
@@ -36,6 +63,22 @@ export default async function DashboardPage() {
   } else {
     // Fallback for development without auth: fetch all blueprints
     blueprints = await prisma.agentBlueprint.findMany({
+      where: {
+        deletedAt: null
+      },
+      include: {
+        workspace: {
+          include: {
+            owner: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
+          }
+        }
+      },
       orderBy: {
         updatedAt: 'desc'
       }
@@ -52,7 +95,10 @@ export default async function DashboardPage() {
             <p className="text-muted-foreground mt-1">Manage your AI Agent workflows and blueprints.</p>
           </div>
           
-          <NewProjectButton />
+          <div className="flex items-center gap-3">
+            <JoinWorkspaceModal />
+            <NewProjectButton />
+          </div>
         </div>
         
         {/* Projects Grid */}
@@ -70,7 +116,7 @@ export default async function DashboardPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {blueprints.map((bp) => (
-              <ProjectCard key={bp.id} blueprint={bp} />
+              <ProjectCard key={bp.id} blueprint={bp} currentUserId={currentUserId} />
             ))}
           </div>
         )}
