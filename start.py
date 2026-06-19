@@ -40,7 +40,7 @@ def setup_environment(lan_ip):
     # Targeted environment variables
     target_vars = {
         "DATABASE_URL": 'DATABASE_URL="postgresql://postgres:postgres@host.docker.internal:54322/postgres"\n',
-        "NEXT_PUBLIC_BACKEND_URL": f'NEXT_PUBLIC_BACKEND_URL="http://{lan_ip}:7070/api/backend"\n',
+        "NEXT_PUBLIC_BACKEND_URL": 'NEXT_PUBLIC_BACKEND_URL="/api/backend"\n',
         "NEXTAUTH_URL": f'NEXTAUTH_URL="http://{lan_ip}:7070"\n'
     }
     
