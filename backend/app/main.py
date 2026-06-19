@@ -12,7 +12,8 @@ from app.modules.mcp_gateway.mcp_controller import router as mcp_router
 app = FastAPI(
     title="Nodebook OS - AI Engine",
     description="Backend for Enterprise ADK",
-    version="1.0.0"
+    version="1.0.0",
+    root_path="/api/backend"
 )
 
 @app.exception_handler(RequestValidationError)

@@ -15,6 +15,10 @@ RUN npm ci || npm install
 # Copy the rest of the application
 COPY . .
 
+# Pass in the backend URL at build time
+ARG NEXT_PUBLIC_BACKEND_URL
+ENV NEXT_PUBLIC_BACKEND_URL=$NEXT_PUBLIC_BACKEND_URL
+
 # Generate Prisma client
 RUN npx prisma generate
 
