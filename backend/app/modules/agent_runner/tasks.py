@@ -143,26 +143,9 @@ async def async_run_agent(payload: dict, task_id: str):
                 
                 step_index = 0
                 
-                # Langfuse Tracing
-                callbacks = []
-                if blueprint.langfuse_public_key and blueprint.langfuse_secret_key:
-                    try:
-                        print(f"[LANGFUSE DEBUG] Initializing with PK={blueprint.langfuse_public_key}, HOST={blueprint.langfuse_host}")
-                        
-                        from langfuse import Langfuse
-                        from langfuse.langchain import CallbackHandler
-                        
-                        langfuse_client = Langfuse(
-                            public_key=blueprint.langfuse_public_key,
-                            secret_key=blueprint.langfuse_secret_key,
-                            host=blueprint.langfuse_host or "https://cloud.langfuse.com"
-                        )
-                        
-                        langfuse_handler = CallbackHandler(public_key=blueprint.langfuse_public_key)
-                        callbacks.append(langfuse_handler)
-                        print("[LANGFUSE DEBUG] CallbackHandler successfully added to callbacks list.")
-                    except ImportError as e:
-                        print(f"[LANGFUSE DEBUG] langfuse package not installed or import error: {e}")
+                # Observability Integration
+                from app.modules.agent_runner.infrastructure.adapters.observability_adapter import ObservabilityFactory
+                callbacks, observability_client = ObservabilityFactory.create_observability_session(blueprint)
                 
                 config = {"configurable": {"thread_id": task_id}, "callbacks": callbacks}
                 
@@ -246,13 +229,11 @@ async def async_run_agent(payload: dict, task_id: str):
                 
             publish_event(task_id, "COMPLETED", "Team finished processing successfully.", {"reply": final_text})
             
-            # Flush Langfuse traces
-            if 'langfuse_client' in locals():
-                print("[LANGFUSE DEBUG] Flushing langfuse traces...")
-                langfuse_client.flush()
-                print("[LANGFUSE DEBUG] Flush complete.")
-            else:
-                print("[LANGFUSE DEBUG] langfuse_client not found in locals!")
+            # Flush Observability traces
+            if 'observability_client' in locals() and observability_client:
+                print("[OBSERVABILITY] Flushing traces...")
+                observability_client.flush()
+                print("[OBSERVABILITY] Flush complete.")
                 
             return {"status": "success", "reply": final_text}
     except BaseException as e:
