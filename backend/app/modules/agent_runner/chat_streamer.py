@@ -27,19 +27,9 @@ async def stream_agent_chat(chat_request: ChatRequest):
             else:
                 lc_messages.append(SystemMessage(content=msg.content))
 
-        # Langfuse Tracing
-        callbacks = []
-        if chat_request.blueprint.langfuse_public_key and chat_request.blueprint.langfuse_secret_key:
-            try:
-                from langfuse.callback import CallbackHandler
-                langfuse_handler = CallbackHandler(
-                    secret_key=chat_request.blueprint.langfuse_secret_key,
-                    public_key=chat_request.blueprint.langfuse_public_key,
-                    host=chat_request.blueprint.langfuse_host or "https://cloud.langfuse.com"
-                )
-                callbacks.append(langfuse_handler)
-            except ImportError:
-                print("Langfuse is not installed. Tracing disabled.")
+        # Observability Integration
+        from app.modules.agent_runner.infrastructure.adapters.observability_adapter import ObservabilityFactory
+        callbacks, observability_client = ObservabilityFactory.create_observability_session(chat_request.blueprint)
 
         # Stream response
         # Using stream_mode="messages" yields chunks of the LLM response
@@ -54,9 +44,9 @@ async def stream_agent_chat(chat_request: ChatRequest):
             # Optional small delay to yield to event loop
             await asyncio.sleep(0.01)
 
-        # Flush Langfuse traces
-        if 'langfuse_handler' in locals():
-            langfuse_handler.flush()
+        # Flush Observability traces
+        if 'observability_client' in locals() and observability_client:
+            observability_client.flush()
             
         yield {"data": json.dumps({"status": "COMPLETED"})}
     except Exception as e:
