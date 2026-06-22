@@ -58,7 +58,12 @@ export async function GET(
       return NextResponse.json({ success: false, error: 'Blueprint not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, blueprint });
+    // Mask secret key before sending to frontend
+    const hasLangfuseSecret = !!blueprint.langfuseSecretKeyEncrypted;
+    // @ts-ignore
+    delete blueprint.langfuseSecretKeyEncrypted;
+
+    return NextResponse.json({ success: true, blueprint: { ...blueprint, hasLangfuseSecret } });
   } catch (error: unknown) {
     console.error("Error fetching blueprint:", error);
     return NextResponse.json(
@@ -67,6 +72,8 @@ export async function GET(
     );
   }
 }
+
+import { encrypt } from '@/lib/crypto';
 
 export async function PATCH(
   request: Request,
@@ -80,15 +87,33 @@ export async function PATCH(
       return NextResponse.json({ success: false, error: 'Blueprint ID is required' }, { status: 400 });
     }
 
+    const updateData: any = {
+      name: body.name,
+      description: body.description,
+    };
+
+    if (body.langfusePublicKey !== undefined) {
+      updateData.langfusePublicKey = body.langfusePublicKey;
+    }
+    if (body.langfuseHost !== undefined) {
+      updateData.langfuseHost = body.langfuseHost;
+    }
+    if (body.langfuseSecretKey) {
+      updateData.langfuseSecretKeyEncrypted = encrypt(body.langfuseSecretKey);
+    } else if (body.langfuseSecretKey === "") {
+      updateData.langfuseSecretKeyEncrypted = null; // allow clearing
+    }
+
     const updatedBlueprint = await prisma.agentBlueprint.update({
       where: { id },
-      data: {
-        name: body.name,
-        description: body.description
-      }
+      data: updateData
     });
 
-    return NextResponse.json({ success: true, blueprint: updatedBlueprint });
+    const hasLangfuseSecret = !!updatedBlueprint.langfuseSecretKeyEncrypted;
+    // @ts-ignore
+    delete updatedBlueprint.langfuseSecretKeyEncrypted;
+
+    return NextResponse.json({ success: true, blueprint: { ...updatedBlueprint, hasLangfuseSecret } });
   } catch (error: unknown) {
     console.error("Error updating blueprint:", error);
     return NextResponse.json({ success: false, error: error instanceof Error ? error.message : 'Internal Server Error' }, { status: 500 });

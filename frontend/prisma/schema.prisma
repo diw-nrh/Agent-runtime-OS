@@ -44,6 +44,11 @@ model AgentBlueprint {
   
   canvasData  Json     
   
+  // Langfuse Configurations
+  langfusePublicKey           String?
+  langfuseSecretKeyEncrypted  String?
+  langfuseHost                String?
+  
   workspaceId String
   workspace   Workspace @relation(fields: [workspaceId], references: [id])
   

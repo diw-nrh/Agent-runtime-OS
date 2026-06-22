@@ -50,6 +50,13 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
   const [copiedWorkspaceId, setCopiedWorkspaceId] = useState(false);
 
+  // Langfuse Observability State
+  const [langfusePublicKey, setLangfusePublicKey] = useState("");
+  const [langfuseSecretKey, setLangfuseSecretKey] = useState("");
+  const [langfuseHost, setLangfuseHost] = useState("");
+  const [hasLangfuseSecret, setHasLangfuseSecret] = useState(false);
+  const [savingLangfuse, setSavingLangfuse] = useState(false);
+
   useEffect(() => {
     // Load connections, linked tools, and execution settings
     const projSettings = getProjectSettings(projectId);
@@ -78,6 +85,9 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
         if (data.success && data.blueprint) {
           setWorkspaceId(data.blueprint.workspaceId);
           setWorkspaceOwnerId(data.blueprint.workspace?.ownerId || null);
+          setLangfusePublicKey(data.blueprint.langfusePublicKey || "");
+          setLangfuseHost(data.blueprint.langfuseHost || "");
+          setHasLangfuseSecret(data.blueprint.hasLangfuseSecret || false);
         }
       })
       .catch(console.error);
@@ -410,11 +420,50 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
     }
   };
 
-  const [activeTab, setActiveTab] = useState<'connections' | 'tools' | 'limits' | 'collaborators'>('connections');
+  const [activeTab, setActiveTab] = useState<'connections' | 'tools' | 'limits' | 'collaborators' | 'observability'>('connections');
 
   const handleSaveExecutionSettings = () => {
     updateExecutionSettings(projectId, executionSettings);
     toast.success("บันทึกการตั้งค่าขีดจำกัดการรันสำเร็จแล้ว");
+  };
+
+  const handleSaveLangfuse = async () => {
+    setSavingLangfuse(true);
+    try {
+      const payload: any = {
+        langfusePublicKey,
+        langfuseHost
+      };
+      if (langfuseSecretKey) {
+        payload.langfuseSecretKey = langfuseSecretKey;
+      } else if (langfuseSecretKey === "" && hasLangfuseSecret) {
+        // Option to clear it if they submit empty but it was previously set.
+        // For safety, let's only clear if explicitly asked or just send it empty.
+        payload.langfuseSecretKey = "";
+      }
+      
+      const res = await fetch(`/api/blueprints/${projectId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success("บันทึกการตั้งค่า Langfuse สำเร็จแล้ว");
+        if (langfuseSecretKey) {
+          setHasLangfuseSecret(true);
+          setLangfuseSecretKey(""); // Clear the input after save
+        } else if (payload.langfuseSecretKey === "") {
+          setHasLangfuseSecret(false);
+        }
+      } else {
+        toast.error(data.error || "Failed to save Langfuse settings");
+      }
+    } catch (e) {
+      toast.error("An error occurred while saving Langfuse settings.");
+    } finally {
+      setSavingLangfuse(false);
+    }
   };
 
   return (
@@ -445,6 +494,14 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
           >
             <Users size={16} /> Collaborators
             {activeTab === 'collaborators' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-t-md" />}
+          </button>
+
+          <button 
+            className={`px-4 py-3 font-medium text-sm transition-colors relative flex items-center gap-2 ${activeTab === 'observability' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+            onClick={() => setActiveTab('observability')}
+          >
+            <Activity size={16} /> Observability
+            {activeTab === 'observability' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-t-md" />}
           </button>
         </div>
       </div>
@@ -1113,6 +1170,83 @@ export default function ProjectSettingsPage({ params }: { params: Promise<{ id: 
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'observability' && (
+        <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-2 duration-300 pb-20">
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold tracking-tight">Observability & Tracing</h2>
+            <p className="text-muted-foreground mt-2 leading-relaxed">
+              Connect your project to Langfuse to monitor LLM calls, costs, and agent behaviors.
+            </p>
+          </div>
+
+          <div className="glass-card rounded-xl p-6 border-l-4 border-l-blue-500 mb-8">
+            <div className="flex gap-4">
+              <div className="bg-blue-500/10 p-3 rounded-full h-fit">
+                <Activity className="w-6 h-6 text-blue-500" />
+              </div>
+              <div>
+                <h3 className="text-lg font-medium">Langfuse Integration</h3>
+                <p className="text-sm text-muted-foreground mt-1 mb-6 max-w-2xl">
+                  By bringing your own Langfuse keys, you ensure that your prompt data and telemetry are stored securely in your own <a href="https://langfuse.com" target="_blank" rel="noreferrer" className="text-primary hover:underline">Langfuse project</a>. We use Envelope Encryption (AES-256-GCM) to encrypt your Secret Key at rest.
+                </p>
+
+                <div className="space-y-5 max-w-xl">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">
+                      Langfuse Secret Key
+                      {hasLangfuseSecret && <span className="ml-2 text-xs bg-green-500/20 text-green-500 px-2 py-0.5 rounded-full">Securely Stored</span>}
+                    </label>
+                    <input 
+                      type="password" 
+                      value={langfuseSecretKey}
+                      onChange={e => setLangfuseSecretKey(e.target.value)}
+                      placeholder={hasLangfuseSecret ? "••••••••••••••••••••••••••••" : "sk-lf-..."}
+                      className="w-full bg-background border border-input rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
+                    {hasLangfuseSecret && (
+                      <p className="text-xs text-muted-foreground">
+                        Your secret key is encrypted. Leave this blank unless you want to overwrite it.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">Langfuse Public Key</label>
+                    <input 
+                      type="text" 
+                      value={langfusePublicKey}
+                      onChange={e => setLangfusePublicKey(e.target.value)}
+                      placeholder="pk-lf-..."
+                      className="w-full bg-background border border-input rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">Langfuse Host URL</label>
+                    <input 
+                      type="text" 
+                      value={langfuseHost}
+                      onChange={e => setLangfuseHost(e.target.value)}
+                      placeholder="https://cloud.langfuse.com"
+                      className="w-full bg-background border border-input rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
+                  </div>
+
+                  <button 
+                    onClick={handleSaveLangfuse}
+                    disabled={savingLangfuse}
+                    className="flex items-center justify-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-md font-medium hover:bg-primary/90 transition-all disabled:opacity-50"
+                  >
+                    {savingLangfuse ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    Save Langfuse Settings
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
