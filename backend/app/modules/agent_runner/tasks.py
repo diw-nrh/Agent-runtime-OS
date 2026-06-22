@@ -10,6 +10,7 @@ from langchain_core.messages import HumanMessage
 from app.core.celery_app import celery_app
 from contextlib import AsyncExitStack
 from app.modules.agent_runner.domain.models import AgentBlueprint
+from app.core.config import settings
 from app.modules.agent_runner.application.builder import build_agent_graph
 from app.modules.agent_runner.infrastructure.adapters.langchain_llm_factory import LangchainLLMFactory
 from app.modules.agent_runner.infrastructure.adapters.redis_telemetry import RedisTelemetry
@@ -141,7 +142,29 @@ async def async_run_agent(payload: dict, task_id: str):
                     print(f"Failed to create run in Trace API: {e}")
                 
                 step_index = 0
-                config = {"configurable": {"thread_id": task_id}}
+                
+                # Langfuse Tracing
+                callbacks = []
+                if blueprint.langfuse_public_key and blueprint.langfuse_secret_key:
+                    try:
+                        print(f"[LANGFUSE DEBUG] Initializing with PK={blueprint.langfuse_public_key}, HOST={blueprint.langfuse_host}")
+                        
+                        from langfuse import Langfuse
+                        from langfuse.langchain import CallbackHandler
+                        
+                        langfuse_client = Langfuse(
+                            public_key=blueprint.langfuse_public_key,
+                            secret_key=blueprint.langfuse_secret_key,
+                            host=blueprint.langfuse_host or "https://cloud.langfuse.com"
+                        )
+                        
+                        langfuse_handler = CallbackHandler(public_key=blueprint.langfuse_public_key)
+                        callbacks.append(langfuse_handler)
+                        print("[LANGFUSE DEBUG] CallbackHandler successfully added to callbacks list.")
+                    except ImportError as e:
+                        print(f"[LANGFUSE DEBUG] langfuse package not installed or import error: {e}")
+                
+                config = {"configurable": {"thread_id": task_id}, "callbacks": callbacks}
                 
                 # Stream updates from the graph
                 async for update in workflow.astream(initial_state, config=config, stream_mode="updates"): # type: ignore[arg-type]
@@ -223,6 +246,14 @@ async def async_run_agent(payload: dict, task_id: str):
                 
             publish_event(task_id, "COMPLETED", "Team finished processing successfully.", {"reply": final_text})
             
+            # Flush Langfuse traces
+            if 'langfuse_client' in locals():
+                print("[LANGFUSE DEBUG] Flushing langfuse traces...")
+                langfuse_client.flush()
+                print("[LANGFUSE DEBUG] Flush complete.")
+            else:
+                print("[LANGFUSE DEBUG] langfuse_client not found in locals!")
+                
             return {"status": "success", "reply": final_text}
     except BaseException as e:
         import traceback

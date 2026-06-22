@@ -26,6 +26,11 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - DATABASE_URL=${DATABASE_URL}
+      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET}
+      - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY}
+      - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY}
+      - LANGFUSE_HOST=${LANGFUSE_HOST}
+      - NEXTJS_URL=http://frontend:3000
     depends_on:
       - redis
     extra_hosts:
@@ -39,6 +44,11 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - DATABASE_URL=${DATABASE_URL}
+      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET}
+      - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY}
+      - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY}
+      - LANGFUSE_HOST=${LANGFUSE_HOST}
+      - NEXTJS_URL=http://frontend:3000
     depends_on:
       - redis
       - backend
@@ -56,6 +66,8 @@ services:
       - NEXT_PUBLIC_BACKEND_URL=${NEXT_PUBLIC_BACKEND_URL}
       - NEXTAUTH_URL=${NEXTAUTH_URL}
       - NEXTAUTH_SECRET=supersecretjwtkey12345
+      - ENCRYPTION_SECRET=${ENCRYPTION_SECRET}
+      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET}
     depends_on:
       - backend
     extra_hosts:

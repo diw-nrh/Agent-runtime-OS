@@ -178,6 +178,8 @@ def get_orchestrator() -> OrchestratorPort:
     # Future: if os.getenv("ORCHESTRATOR_TYPE") == "temporal": return TemporalOrchestrator()
     return CeleryOrchestrator()
 
+import httpx
+
 @router.post("/chat")
 async def chat_with_agent(chat_request: ChatRequest, request: Request, orchestrator: OrchestratorPort = Depends(get_orchestrator)):
     try:
@@ -193,6 +195,23 @@ async def chat_with_agent(chat_request: ChatRequest, request: Request, orchestra
         
         # Inject into blueprint payload
         chat_request.blueprint.api_keys = api_keys
+        
+        # Fetch Langfuse keys from Internal API
+        try:
+            NEXTJS_URL = os.getenv("NEXTJS_URL", "http://localhost:3000")
+            INTERNAL_SECRET = os.getenv("INTERNAL_API_SECRET", "nodebook-secret-dev")
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                headers = {"Authorization": f"Bearer {INTERNAL_SECRET}"}
+                resp = await client.get(f"{NEXTJS_URL}/api/internal/blueprints/{chat_request.blueprint.id}/secrets", headers=headers)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if data.get("success"):
+                        secrets = data.get("secrets", {})
+                        chat_request.blueprint.langfuse_public_key = secrets.get("langfusePublicKey")
+                        chat_request.blueprint.langfuse_secret_key = secrets.get("langfuseSecretKey")
+                        chat_request.blueprint.langfuse_host = secrets.get("langfuseHost")
+        except Exception as e:
+            print(f"Failed to fetch langfuse secrets: {e}")
         
         # Serialize ChatRequest into dict
         payload = {

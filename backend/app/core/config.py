@@ -4,6 +4,11 @@ class Settings:
     # Check if running inside a Docker container
     IS_DOCKER_ENV = os.path.exists("/.dockerenv")
     
+    # Langfuse configuration
+    LANGFUSE_SECRET_KEY = os.environ.get("LANGFUSE_SECRET_KEY", "")
+    LANGFUSE_PUBLIC_KEY = os.environ.get("LANGFUSE_PUBLIC_KEY", "")
+    LANGFUSE_HOST = os.environ.get("LANGFUSE_HOST", "https://cloud.langfuse.com")
+    
     @classmethod
     def resolve_internal_host(cls, url: str) -> str:
         """

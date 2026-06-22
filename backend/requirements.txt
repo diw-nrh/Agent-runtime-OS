@@ -17,3 +17,5 @@ psycopg-pool
 psycopg[binary]
 mcp
 langchain-mcp-adapters
+langfuse>=2.0.0
+langchain
