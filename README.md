@@ -2,11 +2,27 @@
 
 AgentRuntime OS is a powerful multi-agent orchestration platform that allows you to visually build, connect, and execute LLM agents.
 
-## Architecture
-- **Frontend**: Next.js (Canvas UI, Playground, Dashboard)
-- **Backend**: FastAPI (Agent Graph execution, Celery dispatch)
-- **Background Worker**: Celery + Redis (Asynchronous LLM execution)
-- **Database**: PostgreSQL (Prisma ORM)
+## System Architecture & Tech Stack
+AgentRuntime-OS is built on a modern, cloud-native technology stack designed for high performance, scalability, and secure AI execution.
+### Frontend (Client-side)
+* **Framework:** [Next.js](https://nextjs.org/) (React)
+* **Styling:** Tailwind CSS v4 + Shadcn UI
+* **Features:** Interactive Canvas UI, Real-time Playground, and Admin Dashboard
+### Backend (Core API)
+* **Framework:** [FastAPI](https://fastapi.tiangolo.com/) (Python)
+* **Agent Engine:** LangChain & Custom Graph Execution
+* **Role:** Acts as the brain of the OS, handling API routing, tool calling, and orchestrating complex AI workflows.
+### Background Workers & Message Queue
+* **Task Queue:** Celery
+* **Broker / Cache:** Redis
+* **Role:** Manages heavy, asynchronous LLM reasoning and background tasks without blocking the main API threads.
+###  Database & Storage (Data Layer)
+* **Relational DB:** PostgreSQL (Local)
+* **ORM:** Prisma
+* **Object Storage:** MinIO (S3-Compatible local storage for AI-generated artifacts & images)
+### AI Execution Engine
+* **Sandbox Environment:** [E2B](https://e2b.dev/) (Firecracker MicroVMs)
+* **Role:** Provides a highly secure, isolated cloud environment for AI agents to write and execute code autonomously.
 
 ---
 
